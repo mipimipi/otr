@@ -1,0 +1,18 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: otr
+Upstream-Contact: Michael Picht <mipi@fsfe.org>
+Source: gitlab.com/mipimipi/otr
+
+Files: Cargo.lock
+Copyright: 2022 Michael Picht <mipi@fsfe.org>
+License: CC-BY-NC-SA-4.0
+
+Files: .gitignore
+       .gitlab-ci.yml
+       Cargo.toml
+       README.md
+       pkg/*
+       resources/*
+       src/*
+Copyright: 2019-2021 Michael Picht <mipi@fsfe.org>
+License: GPL-3.0-or-later

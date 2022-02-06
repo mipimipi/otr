@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+Copyright (C) 2022 Michael Picht
+SPDX-FileCopyrightText: 2022 Michael Picht <mipi@fsfe.org>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+<mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
+  <mime-type type="application/x-onlinetvrecorder">
+    <comment>Movies from onlinetvrecorder.com</comment>
+    <glob pattern="*.otrkey"/>
+  </mime-type>
+</mime-info>

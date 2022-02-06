@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2022 Michael Picht <mipi@fsfe.org>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Desktop file for otr 
+
+[Desktop Entry]
+
+# The type as listed above
+Type=Application
+
+# The version of the desktop entry specification to which this file complies
+Version=0.9.2
+
+# The name of the application
+Name=otr
+
+# A comment which can/will be used as a tooltip
+Comment=otr - Decode and cut video files from Online TV Recorder
+
+# The executable of the application, possibly with arguments.
+Exec=/usr/bin/otr
+
+# Describes whether this application needs to be run in a terminal or not
+Terminal=true
+
+# Describes the categories in which this entry should be shown
+Categories=Media;Video;
+
+# Supported mime types
+MimeType=application/x-onlinetvrecorder; 
