@@ -3,7 +3,7 @@
 _pkgorg=gitlab.com/mipimipi
 pkgname=otr-git
 _pkgname=otr
-pkgver=0.1.0
+pkgver=r3.cdef4b8
 pkgrel=1
 pkgdesc="Decode and cut video files from Online TV Recorder (OTR)"
 arch=($CARCH)
@@ -40,7 +40,7 @@ build() {
 
 package() {
     cd "$srcdir/$_pkgname"
-    install -Dm0755 -t "$pkgdir/usr/bin/" "target/release/$pkgname"
-    install -Dm644 resources/otr.desktop $(DESTDIR)/usr/share/applications/otr.desktop
-	install -Dm644 resources/otrkey_mime.xml $(DESTDIR)/usr/share/mime/packages/otrkey_mime.xml
+    install -Dm0755 -t "$pkgdir/usr/bin/" "target/release/$_pkgname"
+    install -Dm644 resources/otr.desktop "$pkgdir/usr/share/applications/otr.desktop"
+	install -Dm644 resources/otrkey_mime.xml "$pkgdir/usr/share/mime/packages/otrkey_mime.xml"
 }
