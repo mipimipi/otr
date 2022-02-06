@@ -8,7 +8,7 @@ otr is a command line tool that decodes and cuts videos file from [Online TV Rec
 
 ### Decoding
 
-otr decodes OTRKEY files (i.e., encoded video files downloaded from OTR). The decoding functionality is based on the work of eddy14, who reverse-engineered the OTRKEY file format, see [his blog post](https://pyropeter.eu/41yd.de/blog/2010/04/18/otrkey-breaker/)[German] mirrored by [PyroPeter](https://github.com/pyropeter).
+otr decodes OTRKEY files (i.e., encoded video files downloaded from OTR). The decoding functionality is based on the work of eddy14, who reverse-engineered the OTRKEY file format, see [his blog post](https://pyropeter.eu/41yd.de/blog/2010/04/18/otrkey-breaker/) [German] mirrored by [PyroPeter](https://github.com/pyropeter).
 
 Decoding includes verfying the checksums of the OTRKEY and the decoded file.
 
