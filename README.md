@@ -1,3 +1,5 @@
+[![REUSE status](https://api.reuse.software/badge/gitlab.com/mipimipi/otr)](https://api.reuse.software/info/gitlab.com/mipimipi/otr)
+
 # otr
 
 otr is a command line tool that decodes and cuts videos file from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux.
