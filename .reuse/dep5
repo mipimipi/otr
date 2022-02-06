@@ -14,5 +14,5 @@ Files: .gitignore
        pkg/*
        resources/*
        src/*
-Copyright: 2019-2021 Michael Picht <mipi@fsfe.org>
+Copyright: 2022 Michael Picht <mipi@fsfe.org>
 License: GPL-3.0-or-later
