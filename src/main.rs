@@ -23,7 +23,10 @@ fn process_videos() -> anyhow::Result<()> {
                 Err(err) => {
                     eprintln!(
                         "{:?}",
-                        err.context(format!("Could not move {:?} to working directory", video))
+                        err.context(format!(
+                            "Could not move {:?} to working directory",
+                            video.as_ref()
+                        ))
                     );
                     None
                 }

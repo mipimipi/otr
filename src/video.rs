@@ -282,10 +282,20 @@ pub fn move_to_working_dir(video: Video) -> anyhow::Result<Video> {
     let target_dir = cfg::working_sub_dir(&status_to_dir_kind(video.status()))?;
     let target_path = target_dir.join(video.file_name());
 
-    if source_dir != target_dir {
-        fs::rename(video.as_ref(), &target_path)?;
+    // nothing to do if video is already in correct directory
+    if source_dir == target_dir {
+        return Ok(video);
     }
-    Ok(video)
+
+    // copy video file to working sub directory
+    fs::rename(video.as_ref(), &target_path)?;
+
+    // create and return Video instance with adjusted path
+    Ok(Video {
+        p: target_path.to_path_buf(),
+        k: video.key().to_string(),
+        s: video.status(),
+    })
 }
 
 /// regular expression to analyze the name of a (potential) video files that are
