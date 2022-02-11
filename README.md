@@ -2,23 +2,23 @@
 
 # otr
 
-otr is a command line tool that decodes and cuts videos file from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux.
+otr is a command line tool that decodes and cuts video files from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux.
 
 ## Features
 
 ### Decoding
 
-otr decodes OTRKEY files (i.e., encoded video files downloaded from OTR). The decoding functionality is based on the work of eddy14, who reverse-engineered the OTRKEY file format, see [his blog post](https://pyropeter.eu/41yd.de/blog/2010/04/18/otrkey-breaker/) [German] mirrored by [PyroPeter](https://github.com/pyropeter).
+otr decodes OTRKEY files (i.e., encoded video files downloaded from OTR). The decoding functionality is based on the work of eddy14, who reverse-engineered the OTRKEY file format, see [his blog post](https://pyropeter.eu/41yd.de/blog/2010/04/18/otrkey-breaker/) [German, mirrored by [PyroPeter](https://github.com/pyropeter)].
 
-Decoding includes verfying the checksums of the OTRKEY and the decoded file.
+Decoding includes verifying the checksums of the OTRKEY file and the decoded file.
 
 ### Cutting
 
-otr uses [cutlist.at](http://cutlist.at) as cutlist provider and automatically downloads cutlists from there. Based on them, otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html).
+otr uses [cutlist.at](http://cutlist.at) as cutlist provider and automatically downloads cutlists from there. Based on these, otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html).
 
 ### Fast, concurrent processing
 
-otr tries to process files as fast as possible. Video files are decoded sequentially - i.e., one by one, but each files is decoded using concurrent threads to leverage the cpu capabilities. Cutting is done for many files simultaneously.
+otr tries to process files as fast as possible. Video files are decoded sequentially (i.e., one by one), but each files is decoded using concurrent threads to leverage the cpu capabilities to full extend. Cutting is done for many files simultaneously via concurrent threads as well.
 
 ### Automated handling of otrkey files
 
@@ -26,9 +26,7 @@ It's possible to create a dedicated mime type for otrkey files. otr can be defin
 
 ### Simple usage
 
-Though being a command line application, the usage of otr is quite simple. If, for example, you have downloaded some OTRKEY files from OTR, the command `otr` processes all files (i.e., they are decoded, cutlists are downloaded and the files are cut).
-
-With the dedicated mime type, it's even simpler: A double click on an OTRKEY file starts otr.
+Though being a command line application, the usage of otr is quite simple. If, for example, you have downloaded some OTRKEY files from OTR, the command `otr` processes all files (i.e., they are decoded, cutlists are downloaded and the files are cut). With the dedicated mime type, it's even simpler: A double click on an OTRKEY file starts otr.
 
 ## Installation
 
@@ -55,7 +53,7 @@ Since otr is the only application that can process files of the new mime type, i
 
 ### Installation with package managers
 
-For Arch Linux (and other Linux ditros, that can install packages from the Arch User Repository) there's a [otr package in AUR](https://aur.archlinux.org/packages/otr-git/).
+For Arch Linux (and other Linux distros, that can install packages from the Arch User Repository) there is a [otr package in AUR](https://aur.archlinux.org/packages/otr-git/).
 
 ## Usage
 
@@ -79,7 +77,7 @@ These parameters can either be submitted on the command line or (more convenient
 
 ### Working Directory
 
-otr requires a working directory (e.g. `~/Videos/OTR`). In this directory, the sub directories `Encoded`, `Decoded` and `Cut` are created. Thus, the directory structure is like so:
+otr requires a working directory (`~/Videos/OTR`, for example). In this directory, the sub directories `Encoded`, `Decoded` and `Cut` are created. Thus, the directory structure is like so:
 
     <otr working dir>
         |
