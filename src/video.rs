@@ -235,7 +235,6 @@ pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
 
             match Video::from_path(&file.as_ref().unwrap().path()) {
                 Ok(video) => {
-                    println!("Found: {:?}", video.as_ref());
                     videos.push(video);
                 }
                 Err(_) => {
