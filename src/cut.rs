@@ -2,7 +2,6 @@ use super::{
     cfg,
     video::{Status, Video},
 };
-use anyhow::private::Err;
 use anyhow::{anyhow, Context};
 use ini::Ini;
 use serde::Deserialize;

@@ -130,7 +130,7 @@ pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
     Ok(dec_video)
 }
 
-/// assembles the key that is need to encrypt the payload of the decoding key
+/// assembles the key that is needed to encrypt the payload of the decoding key
 /// request
 fn cbc_key(user: &str, password: &str, now: &str) -> anyhow::Result<String> {
     let user_hash = format!("{:02x}", Md5::digest(user.as_bytes()));
