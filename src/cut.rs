@@ -5,7 +5,7 @@ use super::{
 use anyhow::{anyhow, Context};
 use ini::Ini;
 use serde::Deserialize;
-use std::{cmp, fmt::Debug, fs, path::Path, process::Command, str};
+use std::{cmp, error::Error, fmt, fmt::Debug, fmt::Write, fs, path::Path, process::Command, str};
 
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
@@ -19,8 +19,33 @@ const CUTLIST_ITEM_TIMES_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
+/// special error type for cutting videos to be able to handle specific
+/// situations - e.g., if no cutlist exists
+#[derive(Debug)]
+pub enum CutError {
+    Any(anyhow::Error),
+    NoCutlist,
+}
+// allow the use of "{}" format specifier
+impl fmt::Display for CutError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CutError::Any(ref source) => write!(f, "Error: {}", source),
+            CutError::NoCutlist => write!(f, "No cutlist exists"),
+        }
+    }
+}
+// allow this type to be treated like an error
+impl Error for CutError {}
+// support converting anyhow::Error into CutError
+impl From<anyhow::Error> for CutError {
+    fn from(err: anyhow::Error) -> CutError {
+        CutError::Any(err)
+    }
+}
+
 /// cuts decoded dec_video and returns the cut video
-pub fn cut(dec_video: &Video) -> anyhow::Result<Video> {
+pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
     // nothing to do if dec_video is not in status "decoded"
     if dec_video.status() != Status::Decoded {
         return Ok(dec_video.clone());
@@ -31,10 +56,13 @@ pub fn cut(dec_video: &Video) -> anyhow::Result<Video> {
     let cut_video = Video::new_cut_from_decoded(dec_video).unwrap();
 
     // retrieve cutlist headers
-    let headers: Vec<CutlistHeader> = cutlist_headers(dec_video.file_name()).context(format!(
+    let headers: Vec<CutlistHeader> = match cutlist_headers(dec_video.file_name()).context(format!(
         "Could not retrieve cutlists for {:?}",
         dec_video.file_name()
-    ))?;
+    )) {
+        Ok(hdrs) => hdrs,
+        _ => return Err(CutError::NoCutlist),
+    };
 
     // retrieve cutlists and cut video
     let mut is_cut = false;
@@ -93,10 +121,10 @@ pub fn cut(dec_video: &Video) -> anyhow::Result<Video> {
         println!("Cut {:?}", dec_video.file_name());
         Ok(cut_video)
     } else {
-        Err(anyhow!(
+        Err(CutError::Any(anyhow!(
             "No cutlist could be successfully applied to cut {:?}",
             dec_video.file_name()
-        ))
+        )))
     }
 }
 
@@ -348,7 +376,7 @@ fn cut_with_mkvmerge(
         if i > 0 {
             split_str += ",+"
         }
-        split_str += &format!("{}-{}", &item.start, &item.end);
+        write!(split_str, "{}-{}", &item.start, &item.end).unwrap();
     }
 
     // call mkvmerge to cut the video

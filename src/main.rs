@@ -1,4 +1,5 @@
-use cut::cut;
+use anyhow::anyhow;
+use cut::{cut, CutError};
 use decode::decode;
 use itertools::Itertools;
 use rayon::prelude::*;
@@ -53,11 +54,18 @@ fn process_videos() -> anyhow::Result<()> {
         .par_iter()
         .map(|dec_video| match cut(dec_video) {
             Ok(cut_video) => Ok(cut_video),
-            Err(err) => {
-                let err = err.context(format!("Could not cut {:?}", dec_video.file_name()));
-                eprintln!("{:?}", err);
-                Err(err)
-            }
+            Err(err) => match err {
+                CutError::Any(err) => {
+                    let err = err.context(format!("Could not cut {:?}", dec_video.file_name()));
+                    eprintln!("{:?}", err);
+                    Err(err)
+                }
+                CutError::NoCutlist => {
+                    println!("No cutlist exists for {:?}", dec_video.file_name());
+                    Err(anyhow!(err)
+                        .context(format!("No cutlist exists for {:?}", dec_video.file_name())))
+                }
+            },
         })
         // receive final results (i.e., results from cutting videos)
         .collect::<Vec<anyhow::Result<Video>>>();
