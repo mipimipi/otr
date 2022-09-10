@@ -16,7 +16,7 @@ const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
 #[derive(StructOpt, Debug)]
 #[structopt(
     name = "otr",
-    version = "0.1.0",
+    version = "0.2.4",
     author = "Michael Picht <mipi@fsfe.org>",
     about = "otr decodes and cuts video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
 )]
@@ -73,7 +73,7 @@ impl fmt::Display for DirKind {
 }
 
 /// dir_kind_to_sub_path returns the relative sub directory path for each
-///  directory kind
+/// directory kind
 pub fn dir_kind_to_sub_path<'a>(dir_kind: &DirKind) -> &'a str {
     match dir_kind {
         DirKind::Root => SUB_PATH_ROOT,
