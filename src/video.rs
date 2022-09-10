@@ -4,7 +4,28 @@ use once_cell::sync::OnceCell;
 use regex::Regex;
 use std::{cmp, fs, path::Path, path::PathBuf};
 
-/// status of a video. The status can be ordered: Encoded < Decoded < Cut
+/// Key represents the key of an OTR video, that's the left part of the file
+/// name ending with "_TVOON_DE". I.e., key of
+/// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE.mpg.HD.avi
+/// is
+/// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd)]
+pub struct Key(String);
+/// support conversion from &str to Key
+impl From<&str> for Key {
+    fn from(s: &str) -> Self {
+        Key(s.to_string())
+    }
+}
+/// support conversion from String to Key
+impl From<String> for Key {
+    fn from(s: String) -> Self {
+        Key(s)
+    }
+}
+
+/// Status represents the status of a video - i.e., whether its encoded,
+/// decoded or cut. The status can be ordered: Encoded < Decoded < Cut
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Status {
     Encoded,
@@ -23,7 +44,7 @@ impl PartialOrd for Status {
     }
 }
 
-/// mapping of video status to directory kind
+/// status_to_dir_kind maps a video status to the corresponding directory kind
 fn status_to_dir_kind(status: Status) -> DirKind {
     match status {
         Status::Encoded => DirKind::Encoded,
@@ -32,25 +53,22 @@ fn status_to_dir_kind(status: Status) -> DirKind {
     }
 }
 
-/// video (path of the corresponding file)
+/// Video represents a video file downloaded from OTR, incl. its path, key and
+/// status
 #[derive(Clone, Debug)]
 pub struct Video {
     p: PathBuf, // path
-    k: String,  // key
+    k: Key,     // key
     s: Status,  // status
 }
 
 impl Video {
-    // key of a Video, that's the left part of the file name ending with
-    // "_TVOON_DE". I.e., key of
-    // Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE.mpg.HD.avi
-    // is
-    // Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE
-    pub fn key(&self) -> &str {
+    // key returns the key of a Video
+    pub fn key(&self) -> &Key {
         &self.k
     }
 
-    // status of a Video (i.e., whether it's encoded, decoded or cut)
+    // status returns the status of a Video
     pub fn status(&self) -> Status {
         self.s
     }
@@ -80,7 +98,7 @@ impl Video {
                 .join(cfg::working_sub_dir(&status_to_dir_kind(Status::Decoded))?)
                 .join(enc_video.file_name())
                 .with_extension(""),
-            k: enc_video.key().to_string(),
+            k: enc_video.key().clone(),
             s: Status::Decoded,
         });
     }
@@ -109,13 +127,15 @@ impl Video {
                         + "."
                         + dec_video.as_ref().extension().unwrap().to_str().unwrap(),
                 ),
-            k: dec_video.key().to_string(),
+            k: dec_video.key().clone(),
             s: Status::Cut,
         })
     }
 }
 
-/// allow creation of a Video from a &Path
+/// allow conversion of a &PathBuf into a Video. Usage of From trait is not
+/// possible since not all paths represent OTR videos and thus, an error can
+/// occur
 impl TryFrom<&PathBuf> for Video {
     type Error = anyhow::Error;
 
@@ -137,9 +157,11 @@ impl TryFrom<&PathBuf> for Video {
                         .replace(".mpg", "");
                     return Ok(Video {
                         p: path.to_path_buf(),
-                        k: captures.get(1).unwrap().as_str().to_string()
-                            + if appendix.starts_with('.') { "" } else { "." }
-                            + &appendix,
+                        k: Key::from(
+                            captures.get(1).unwrap().as_str().to_string()
+                                + if appendix.starts_with('.') { "" } else { "." }
+                                + &appendix,
+                        ),
                         s: Status::Cut,
                     });
                 }
@@ -149,13 +171,15 @@ impl TryFrom<&PathBuf> for Video {
                     let captures = regex_uncut_video().captures(file_name_str).unwrap();
                     return Ok(Video {
                         p: path.to_path_buf(),
-                        k: captures.get(1).unwrap().as_str().to_string()
-                            + if let Some(fmt) = captures.name("fmt") {
-                                fmt.as_str()
-                            } else {
-                                ""
-                            }
-                            + captures.name("ext").unwrap().as_str(),
+                        k: Key::from(
+                            captures.get(1).unwrap().as_str().to_string()
+                                + if let Some(fmt) = captures.name("fmt") {
+                                    fmt.as_str()
+                                } else {
+                                    ""
+                                }
+                                + captures.name("ext").unwrap().as_str(),
+                        ),
                         s: if captures.name("encext").is_some() {
                             Status::Encoded
                         } else {
@@ -206,10 +230,10 @@ impl PartialOrd for Video {
     }
 }
 
-/// collects video files from the working (sub) directories and from the paths
-/// submitted via the command line, creates the corresponding Video instances
-/// and returns them as vector, sorted by key (ascending) and status
-/// (descending)
+/// collect_and_sort collects video files from the working (sub) directories and
+/// from the paths submitted via the command line, creates the corresponding
+/// Video instances and returns them as vector, sorted by key (ascending) and
+/// status (descending)
 pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
@@ -296,7 +320,7 @@ pub fn move_to_working_dir(video: Video) -> anyhow::Result<Video> {
     // create and return Video instance with adjusted path
     Ok(Video {
         p: target_path.to_path_buf(),
-        k: video.key().to_string(),
+        k: video.key().clone(),
         s: video.status(),
     })
 }
