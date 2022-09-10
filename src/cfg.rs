@@ -15,10 +15,10 @@ const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
 /// Args holds the command line arguments
 #[derive(StructOpt, Debug)]
 #[structopt(
-    name = "otr",
-    version = "0.2.4",
-    author = "Michael Picht <mipi@fsfe.org>",
-    about = "otr decodes and cuts video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
+    name = env!("CARGO_PKG_NAME"),
+    version = env!("CARGO_PKG_VERSION"),
+    author = env!("CARGO_PKG_AUTHORS"),
+    about = env!("CARGO_PKG_DESCRIPTION")
 )]
 struct Args {
     #[structopt(
