@@ -7,6 +7,7 @@ use ini::Ini;
 use serde::Deserialize;
 use std::{cmp, error::Error, fmt, fmt::Debug, fmt::Write, fs, path::Path, process::Command, str};
 
+/// URI's for the retrieval of cutlist data
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
 
@@ -26,7 +27,7 @@ pub enum CutError {
     Any(anyhow::Error),
     NoCutlist,
 }
-// allow the use of "{}" format specifier
+// support the use of "{}" format specifier
 impl fmt::Display for CutError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -35,16 +36,16 @@ impl fmt::Display for CutError {
         }
     }
 }
-// allow this type to be treated like an error
+// support conversion an Error into CutError
 impl Error for CutError {}
-// support converting anyhow::Error into CutError
+// support conversion of an anyhow::Error into CutError
 impl From<anyhow::Error> for CutError {
     fn from(err: anyhow::Error) -> CutError {
         CutError::Any(err)
     }
 }
 
-/// cuts decoded dec_video and returns the cut video
+/// cut cuts a decoded Video and returns the cut Video
 pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
     // nothing to do if dec_video is not in status "decoded"
     if dec_video.status() != Status::Decoded {
@@ -56,7 +57,7 @@ pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
     let cut_video = Video::new_cut_from_decoded(dec_video).unwrap();
 
     // retrieve cutlist headers
-    let headers: Vec<CutlistHeader> = match cutlist_headers(dec_video.file_name()).context(format!(
+    let headers: Vec<CutlistHeader> = match cutlist_headers(dec_video).context(format!(
         "Could not retrieve cutlists for {:?}",
         dec_video.file_name()
     )) {
@@ -128,11 +129,20 @@ pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
     }
 }
 
+/// CutKind represents the kind of a cut - i.e., whether it is expressed in
+/// frame numbers or times
+#[derive(Debug)]
+enum CutKind {
+    Frames,
+    Times,
+}
+
+/// CutlistHeader represents the header of a cutlist
 #[derive(Debug)]
 struct CutlistHeader {
     id: u64,
     rating: f64,
-    with_frames: bool,
+    kind: CutKind,
 }
 impl Eq for CutlistHeader {}
 impl Ord for CutlistHeader {
@@ -157,7 +167,9 @@ impl PartialOrd for CutlistHeader {
     }
 }
 
-fn cutlist_headers(name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
+/// cutlist_headers retrieves the headers of potentially existing cutlists for
+/// a Video. If no cutlists exists, an empty array but no error is returned.
+fn cutlist_headers(video: &Video) -> anyhow::Result<Vec<CutlistHeader>> {
     #[derive(Debug, Deserialize)]
     struct Headers {
         #[serde(rename = "cutlist")]
@@ -172,24 +184,26 @@ fn cutlist_headers(name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
         errors: String,
     }
 
-    let response = reqwest::blocking::get(CUTLIST_RETRIEVE_HEADERS_URI.to_string() + name)
+    let file_name = video.file_name();
+
+    let response = reqwest::blocking::get(CUTLIST_RETRIEVE_HEADERS_URI.to_string() + file_name)
         .with_context(|| {
             format!(
                 "Did not get a response for cutlist header request for {}",
-                name
+                file_name
             )
         })?
         .text()
-        .with_context(|| format!("Could not parse cutlist header response for {}", name))?;
+        .with_context(|| format!("Could not parse cutlist header response for {}", file_name))?;
 
     if response.is_empty() {
-        return Err(anyhow!(format!("Did not find cutlist for {:?}", name)));
+        return Err(anyhow!(format!("Did not find cutlist for {:?}", file_name)));
     }
 
     let mut headers: Vec<CutlistHeader> = vec![];
 
     let raw_headers: Headers = quick_xml::de::from_str(&response)
-        .with_context(|| format!("Could not parse cutlist headers for {:?}", name))?;
+        .with_context(|| format!("Could not parse cutlist headers for {:?}", file_name))?;
 
     for raw_header in raw_headers.headers {
         // don't accept cutlists with errors
@@ -202,7 +216,7 @@ fn cutlist_headers(name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
         let mut header: CutlistHeader = CutlistHeader {
             id: raw_header.id,
             rating: 0.0,
-            with_frames: false,
+            kind: CutKind::Frames,
         };
 
         // parse rating
@@ -212,7 +226,11 @@ fn cutlist_headers(name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
 
         // parse frames indicator
         if let Ok(with_frames) = raw_header.with_frames.parse::<i32>() {
-            header.with_frames = with_frames == 1;
+            header.kind = if with_frames == 1 {
+                CutKind::Frames
+            } else {
+                CutKind::Times
+            };
         }
 
         headers.push(header);
@@ -222,17 +240,37 @@ fn cutlist_headers(name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
     Ok(headers)
 }
 
-#[derive(Debug, Default)]
+/// CutPoint represents a start or end point of a cut
+#[derive(Debug)]
+pub enum CutPoint {
+    Frame(f64),
+    Time(f64),
+}
+impl fmt::Display for CutPoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            CutPoint::Frame(point) => write!(f, "{:.0}", point),
+            CutPoint::Time(point) => {
+                let time: u64 = (point * 1000000_f64) as u64;
+                let (seconds, subs) = (time / 1000000, time % 1000000);
+                let (hours, rest) = (seconds / 3600, seconds % 3600);
+                let (mins, rest) = (rest / 60, rest % 60);
+                write!(f, "{:02}:{:02}:{:02}.{:06}", hours, mins, rest, subs)
+            }
+        }
+    }
+}
+
+/// CutlistItem represents a cut of a cutlist - i.e., a start and an end point
+#[derive(Debug)]
 struct CutlistItem {
-    start: String,
-    end: String,
+    start: CutPoint,
+    end: CutPoint,
 }
 impl CutlistItem {
-    fn new(
-        start: &str,
-        duration: &str,
-        convert: fn(f64) -> String,
-    ) -> anyhow::Result<Option<CutlistItem>> {
+    // new creates a new CutListItem from a start point, a duration and
+    // the kind of the cut
+    fn new(start: &str, duration: &str, kind: &CutKind) -> anyhow::Result<Option<CutlistItem>> {
         // convert start and duration to floating point
         let start_f = start
             .parse::<f64>()
@@ -241,30 +279,45 @@ impl CutlistItem {
             .parse::<f64>()
             .with_context(|| format!("Could not parse {:?} to floating point", duration))?;
 
-        // cutlist item withs zero duration (i.e., equal start and end make no sense)
+        // cutlist item with zero duration (i.e., equal start and end make no sense)
         if duration_f > 0.0 {
             // assemble cutlist item
-            Ok(Some(CutlistItem {
-                start: convert(start_f),
-                end: convert(start_f + duration_f),
-            }))
+            Ok(match kind {
+                CutKind::Frames => Some(CutlistItem {
+                    start: CutPoint::Frame(start_f),
+                    end: CutPoint::Frame(start_f + duration_f),
+                }),
+                _ => Some(CutlistItem {
+                    start: CutPoint::Time(start_f),
+                    end: CutPoint::Time(start_f + duration_f),
+                }),
+            })
         } else {
             Ok(None)
         }
     }
+}
 
-    fn convert_frame(f: f64) -> String {
-        format!("{:.0}", f)
-    }
-    fn convert_time(f: f64) -> String {
-        let time: u64 = (f * 1000000_f64) as u64;
-        let (seconds, subs) = (time / 1000000, time % 1000000);
-        let (hours, rest) = (seconds / 3600, seconds % 3600);
-        let (mins, rest) = (rest / 60, rest % 60);
-        format!("{:02}:{:02}:{:02}.{:06}", hours, mins, rest, subs)
+/// cutlist_item_attr_start returns the attribute name for start of a cut
+/// depending on the kind of the cut
+fn cutlist_item_attr_start(kind: &CutKind) -> String {
+    match kind {
+        CutKind::Frames => CUTLIST_ITEM_FRAMES_START.to_string(),
+        _ => CUTLIST_ITEM_TIMES_START.to_string(),
     }
 }
 
+/// cutlist_item_attr_duration returns the attribute name for the duration of a
+/// cur depending the kind of the cut
+fn cutlist_item_attr_duration(kind: &CutKind) -> String {
+    match kind {
+        CutKind::Frames => CUTLIST_ITEM_FRAMES_DURATION.to_string(),
+        _ => CUTLIST_ITEM_TIMES_DURATION.to_string(),
+    }
+}
+
+/// cutlist retrieves the cutlist (i.e., the different cuts) for a given cutlist
+/// header
 fn cutlist(header: &CutlistHeader) -> anyhow::Result<Vec<CutlistItem>> {
     // retrieve cutlist in INI format
     let response = reqwest::blocking::get(
@@ -316,40 +369,25 @@ fn cutlist(header: &CutlistHeader) -> anyhow::Result<Vec<CutlistItem>> {
                     i, header.id
                 )
             })?;
-
-        if let Some(item) = if !header.with_frames {
-            CutlistItem::new(
-                cut.get(CUTLIST_ITEM_TIMES_START).with_context(|| {
+        if let Some(item) = CutlistItem::new(
+            cut.get(cutlist_item_attr_start(&header.kind))
+                .with_context(|| {
                     format!(
                         "Could not find attribute '{}' for cut no {}",
-                        CUTLIST_ITEM_TIMES_START, i
+                        cutlist_item_attr_start(&header.kind),
+                        i
                     )
                 })?,
-                cut.get(CUTLIST_ITEM_TIMES_DURATION).with_context(|| {
+            cut.get(cutlist_item_attr_duration(&header.kind))
+                .with_context(|| {
                     format!(
                         "Could not find attribute '{}' for cut no {}",
-                        CUTLIST_ITEM_TIMES_DURATION, i
+                        cutlist_item_attr_duration(&header.kind),
+                        i
                     )
                 })?,
-                CutlistItem::convert_time,
-            )?
-        } else {
-            CutlistItem::new(
-                cut.get(CUTLIST_ITEM_FRAMES_START).with_context(|| {
-                    format!(
-                        "Could not find attribute '{}' for cut no {}",
-                        CUTLIST_ITEM_FRAMES_START, i
-                    )
-                })?,
-                cut.get(CUTLIST_ITEM_FRAMES_DURATION).with_context(|| {
-                    format!(
-                        "Could not find attribute '{}' for cut no {}",
-                        CUTLIST_ITEM_FRAMES_DURATION, i
-                    )
-                })?,
-                CutlistItem::convert_frame,
-            )?
-        } {
+            &header.kind,
+        )? {
             items.push(item);
         }
     }
@@ -357,8 +395,9 @@ fn cutlist(header: &CutlistHeader) -> anyhow::Result<Vec<CutlistItem>> {
     Ok(items)
 }
 
-/// cuts video file stored in in_path with mkvmerge using the cutlist
-/// information in header and items and stores the cut video in out_path
+/// cut_with_mkvmerge cuts a video file stored in in_path with mkvmerge using
+/// the cutlist information in header and items and stores the cut video in
+/// out_path
 fn cut_with_mkvmerge(
     in_path: &Path,
     out_path: &Path,
@@ -367,10 +406,9 @@ fn cut_with_mkvmerge(
 ) -> anyhow::Result<()> {
     // assemble split parameter for mkvmerge
     let mut split_str = "".to_string();
-    if header.with_frames {
-        split_str += "parts-frames:"
-    } else {
-        split_str += "parts:"
+    match header.kind {
+        CutKind::Frames => split_str += "parts-frames:",
+        _ => split_str += "parts:",
     }
     for (i, item) in items.iter().enumerate() {
         if i > 0 {

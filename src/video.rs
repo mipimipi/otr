@@ -73,13 +73,14 @@ impl Video {
         self.s
     }
 
-    // file name of a Video
+    // file_name returns the file name of a Video
     pub fn file_name(&self) -> &str {
         self.p.file_name().unwrap().to_str().unwrap()
     }
 
-    // creates a new Video of status "Decoded" from a Video of status "Encoded"
-    // with the correct path (i.e., correct sub working directory and file name)
+    // new_decoded_from_encoded creates a new Video of status "Decoded" from a
+    // Video of status "Encoded" with the correct path (i.e., correct sub
+    // working directory and file name)
     pub fn new_decoded_from_encoded(enc_video: &Video) -> anyhow::Result<Video> {
         if enc_video.status() != Status::Encoded {
             return Err(anyhow!(format!(
@@ -103,8 +104,9 @@ impl Video {
         });
     }
 
-    // creates a new Video of status "Cut" from a Video of status "Decoded"
-    // with the correct path (i.e., correct sub working directory and file name)
+    // new_cut_from_decoded creates a new Video of status "Cut" from a Video of
+    // status "Decoded" with the correct path (i.e., correct sub working
+    // directory and file name)
     pub fn new_cut_from_decoded(dec_video: &Video) -> anyhow::Result<Video> {
         if dec_video.status() != Status::Decoded {
             return Err(anyhow!(format!(
@@ -133,7 +135,7 @@ impl Video {
     }
 }
 
-/// allow conversion of a &PathBuf into a Video. Usage of From trait is not
+/// support conversion of a &PathBuf into a Video. Usage of From trait is not
 /// possible since not all paths represent OTR videos and thus, an error can
 /// occur
 impl TryFrom<&PathBuf> for Video {
@@ -193,14 +195,14 @@ impl TryFrom<&PathBuf> for Video {
     }
 }
 
-/// video can be used as &Path
+/// support usage of Video as &Path
 impl AsRef<Path> for Video {
     fn as_ref(&self) -> &Path {
         &self.p
     }
 }
 
-/// ordering of videos: By key (ascending), status (descending)
+/// support ordering of videos: By key (ascending), status (descending)
 impl Eq for Video {}
 impl Ord for Video {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
@@ -299,8 +301,8 @@ pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
     Ok(videos)
 }
 
-/// moves a video to the working sub directory corresponding to its status. The
-/// video (the path) is changed accordingly
+/// move_to_working_dir moves a Video to the working sub directory corresponding
+/// to its status. The Video (i.e., its path) is changed accordingly
 pub fn move_to_working_dir(video: Video) -> anyhow::Result<Video> {
     // since video path was already checked for compliance before, it is OK to
     // simply unwrap the result
@@ -325,8 +327,8 @@ pub fn move_to_working_dir(video: Video) -> anyhow::Result<Video> {
     })
 }
 
-/// regular expression to analyze the name of a (potential) video file that is
-/// not cut - i.e., either encoded or decoded
+/// regex_uncut_video returns a regular expression to analyze the name of a
+/// (potential) video file that is not cut - i.e., either encoded or decoded
 fn regex_uncut_video() -> &'static Regex {
     static RE_VALID_VIDEO: OnceCell<Regex> = OnceCell::new();
     RE_VALID_VIDEO.get_or_init(|| {
@@ -334,8 +336,8 @@ fn regex_uncut_video() -> &'static Regex {
     })
 }
 
-/// regular expression to analyze the name of a (potential) video file that is
-/// cut
+/// regex_cut_video returns a regular expression to analyze the name of a
+/// (potential) video file that is cut
 fn regex_cut_video() -> &'static Regex {
     static RE_VALID_VIDEO: OnceCell<Regex> = OnceCell::new();
     RE_VALID_VIDEO.get_or_init(|| {
