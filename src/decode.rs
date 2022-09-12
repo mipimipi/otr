@@ -43,13 +43,13 @@ const PARAM_DECODING_KEY: &str = "HP";
 const BLOCK_SIZE: usize = 8;
 const MAX_CHUNK_SIZE: usize = 10 * 1024 * 1024;
 
-/// maps parameter keys to its values (key->value)
+/// OTRParams maps parameter keys to its values (key->value)
 type OTRParams = HashMap<String, String>;
 
-/// chunk of video file for concurrent decoding
+/// Chunk represents a part of a video file for concurrent decoding
 type Chunk = Vec<u8>;
 
-/// decodes encoded video enc_video and returns the decoded video
+/// decode decodes an encoded video and returns the corresponding decoded video
 pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
     // nothing to do if enc_video is not in status "encoded"
     if enc_video.status() != Status::Encoded {
@@ -130,8 +130,8 @@ pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
     Ok(dec_video)
 }
 
-/// assembles the key that is needed to encrypt the payload of the decoding key
-/// request
+/// cbc_key assembles the key that is needed to encrypt the payload of the
+/// decoding key request
 fn cbc_key(user: &str, password: &str, now: &str) -> anyhow::Result<String> {
     let user_hash = format!("{:02x}", Md5::digest(user.as_bytes()));
     let password_hash = format!("{:02x}", Md5::digest(password.as_bytes()));
@@ -146,10 +146,10 @@ fn cbc_key(user: &str, password: &str, now: &str) -> anyhow::Result<String> {
     Ok(cbc_key)
 }
 
-/// calculates the sizes of the different chunks for parallel decoding. The
-/// result is a vector [MAX_CHUNK_SIZE, ..., MAX_CHUNK_SIZE, CHUNK_SIZE,
-/// REMAINDER], whereas CHUNK_SIZE is less than MAX_CHUNK_SIZE but is a multiple
-/// of BLOCK_SIZE. REMAINDER is less than BLOCK_SIZE.
+/// chunk_sizes calculates the sizes of the different chunks for parallel
+/// decoding. The result is a vector [MAX_CHUNK_SIZE, ..., MAX_CHUNK_SIZE,
+/// CHUNK_SIZE, REMAINDER], whereas CHUNK_SIZE is less than MAX_CHUNK_SIZE but
+/// is a multiple of BLOCK_SIZE. REMAINDER is less than BLOCK_SIZE.
 fn chunk_sizes(file_size: usize) -> Vec<usize> {
     let (full_chunks, remainder) = (file_size / MAX_CHUNK_SIZE, file_size % MAX_CHUNK_SIZE);
     let mut sizes: Vec<usize> = vec![MAX_CHUNK_SIZE; full_chunks];
@@ -162,15 +162,16 @@ fn chunk_sizes(file_size: usize) -> Vec<usize> {
     sizes
 }
 
-/// determines the current date and returns it as numeric string of format
-/// "YYYYMMDD"
+/// current_date bdetermines the current date and returns it as numeric string
+/// of format "YYYYMMDD"
 fn current_date() -> String {
     let now = chrono::Local::now().date();
     format!("{:04}{:02}{:02}", now.year(), now.month(), now.day())
 }
 
-/// decodes one chunk of the encoded video file and returns the decoded chunk.
-/// This function is called in a separate thread for each chunk
+/// decode_chunk decodes one chunk of an encoded video file and returns the
+/// correspondig decoded chunk. This function is called in a dedicated thread
+/// for each chunk
 fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
     // chunks can only be decoded if their size is greater than
     // BLOCK_SIZE. Otherwise, the chunk is returned encoded
@@ -186,8 +187,8 @@ fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
     chunk
 }
 
-/// decodes in_file in concurrent threads using key as decoding key and writes
-/// the result to out_path
+/// decode_in_parallel decodes a video file (in_file) in concurrent threads
+/// using key as decoding key and writes the result to out_path
 fn decode_in_parallel(
     in_file: &mut File,
     out_path: &Video,
@@ -284,8 +285,8 @@ fn decode_in_parallel(
     Ok(())
 }
 
-/// requests decoding parameters (incl. decoding key) via OTR web service and
-/// returns them as hash map: key -> value
+/// decoding_params requests decoding parameters (incl. decoding key) via OTR
+/// web service and returns them as hash map: key -> value
 fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
     // request decoding key from OTR
     let response = reqwest::blocking::Client::builder()
@@ -341,7 +342,8 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
     Ok(decoding_params)
 }
 
-/// assembles the URL for requesting the decoding key from OTR
+/// decoding_params_request assembles the URL for requesting the decoding key
+/// via the OTR web service
 fn decoding_params_request(
     cbc_key: &str,
     header: &OTRParams,
@@ -395,8 +397,8 @@ fn decoding_params_request(
     Ok(request)
 }
 
-/// extracts parameter SZ (= file size) from the header parameter hash map and
-/// returns it as unsigned integer
+/// file_size_from_params extracts the parameter SZ (= file size) from the
+/// header parameter hash map and returns it as unsigned integer
 fn file_size_from_params(header_params: &OTRParams) -> usize {
     header_params
         .get(PARAM_FILESIZE)
@@ -405,6 +407,8 @@ fn file_size_from_params(header_params: &OTRParams) -> usize {
         .unwrap()
 }
 
+/// hashing_queue calculates the MD5 checksum of video file (in this case the
+/// data is received via a queue)
 fn hashing_queue(queue: Receiver<Chunk>) -> [u8; 16] {
     let mut hasher = Md5::new();
 
@@ -418,8 +422,8 @@ fn hashing_queue(queue: Receiver<Chunk>) -> [u8; 16] {
     checksum
 }
 
-/// extracts parameters from the beginning of the OTRKEY file and returns them
-/// in a hash map: key -> value
+/// header_params extracts parameters from the beginning of the OTRKEY file and
+/// returns them in a hash map: key -> value
 fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
     let mut buffer = [0; HEADER_LENGTH];
 
@@ -462,9 +466,10 @@ fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
     Ok(header_params)
 }
 
-/// takes a string of parameters of the form "key1=value1&key2=value2&..." and
-/// extracts it into a hash map: key -> value. must_have is a list of keys that
-/// must be present. If any of these keys is missing, an error is returned
+/// params_from_str takes a string of parameters of the form
+/// "key1=value1&key2=value2&..." and extracts it into a hash map: key -> value.
+/// must_have is a list of keys that must be present. If any of these keys is
+/// missing, an error is returned
 fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTRParams> {
     let mut params: OTRParams = HashMap::new();
     for param in params_str.split('&') {
@@ -495,12 +500,13 @@ fn random_byte_vector(len: usize) -> Vec<u8> {
     bytes
 }
 
-/// assembles a random hexadecimal string of length len
+/// random_hex_string assembles a random hexadecimal string of length len
 fn random_hex_string(len: usize) -> String {
     random_string::generate(len, "0123456789abcdef")
 }
 
-/// checks if checksum fits to hash. The hash must be a 48 character hex string
+/// verify_checksum checks if checksum fits to hash. The hash must be a 48
+/// character hex string
 fn verify_checksum(checksum: &[u8], hash: &str) -> anyhow::Result<bool> {
     if hash.len() != 48 {
         return Err(anyhow!("MD5 hash must be 48 characters long"));
