@@ -237,18 +237,8 @@ impl PartialOrd for Video {
 /// Video instances and returns them as vector, sorted by key (ascending) and
 /// status (descending)
 pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
-    let mut videos: Vec<Video> = Vec::new();
-
-    // collect videos from command line parameters
-    for path in cfg::videos() {
-        if let Ok(video) = Video::try_from(path) {
-            videos.push(video);
-            continue;
-        }
-        println!("{:?} is not a valid video file: Ignored", path)
-    }
-
-    // collect videos from directory of kind dir_kind
+    // collect_videos_from_dir collects videos from the directory that is
+    // assigned to kind dir_kind
     fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
         let mut videos: Vec<Video> = Vec::new();
         let dir = cfg::working_sub_dir(dir_kind)
@@ -279,25 +269,38 @@ pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
         Ok(videos)
     }
 
-    // collect videos from working (sub) directories
-    for dir_kind in [
-        DirKind::Root,
-        DirKind::Encoded,
-        DirKind::Decoded,
-        DirKind::Cut,
-    ] {
-        videos.append(&mut collect_videos_from_dir(&dir_kind).context(format!(
-            "Could not retrieve videos from '{:?}' sub directory",
-            &dir_kind
-        ))?);
+    let mut videos: Vec<Video> = Vec::new();
+
+    // collect videos from command line parameters
+    for path in cfg::videos() {
+        if let Ok(video) = Video::try_from(path) {
+            videos.push(video);
+            continue;
+        }
+        println!("{:?} is not a valid video file: Ignored", path)
     }
 
-    videos.sort();
+    // if no videos have been submiited via command line: collect videos from
+    // working (sub) directories
+    if videos.is_empty() {
+        for dir_kind in [
+            DirKind::Root,
+            DirKind::Encoded,
+            DirKind::Decoded,
+            DirKind::Cut,
+        ] {
+            videos.append(&mut collect_videos_from_dir(&dir_kind).context(format!(
+                "Could not retrieve videos from '{:?}' sub directory",
+                &dir_kind
+            ))?);
+        }
+    }
 
     if videos.is_empty() {
         println!("No videos found :(");
     }
 
+    videos.sort();
     Ok(videos)
 }
 
