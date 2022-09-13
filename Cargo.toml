@@ -14,6 +14,7 @@ base64 = "0.13"
 blowfish = "0.8"
 block-modes = "0.8"
 chrono = "0.4"
+clap = { version = "3.2", features = [ "derive" ] }
 dirs = "4"
 hex = "0.4"
 itertools = "0.10" 
@@ -28,4 +29,3 @@ reqwest = { version = "0.11", features = ["blocking"] }
 rust-ini = "0.18"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-structopt = "0.3"
