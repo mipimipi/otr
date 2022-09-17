@@ -35,6 +35,8 @@ fn process_videos() -> anyhow::Result<()> {
         )
         // remove duplicate entries of the same video with "lower" status
         .dedup_by(|v1, v2| v1.key() == v2.key())
+        // print message for already cut videos
+        .map(|video| video::nothing_to_do(&video))
         // decode videos, receive result and print error messages. Result of
         // the closure is either the decoded video in case of success, or the
         // encoded video otherwise

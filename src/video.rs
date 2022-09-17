@@ -298,10 +298,20 @@ pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
 
     if videos.is_empty() {
         println!("No videos found :(");
+    } else {
+        videos.sort();
     }
 
-    videos.sort();
     Ok(videos)
+}
+
+// Check if the video is alread cut. If that's the case, print a message.
+// Other do nothing.
+pub fn nothing_to_do(video: &Video) -> Video {
+    if video.status() == Status::Cut {
+        println!("Already cut: {:?}", video.file_name());
+    }
+    video.clone()
 }
 
 /// move_to_working_dir moves a Video to the working sub directory corresponding
