@@ -12,6 +12,7 @@ use std::{
     fs::remove_file,
     fs::File,
     io::prelude::*,
+    path::PathBuf,
     str,
     sync::mpsc::{channel, Receiver},
     thread,
@@ -50,15 +51,15 @@ type OTRParams = HashMap<String, String>;
 type Chunk = Vec<u8>;
 
 /// decode decodes an encoded video and returns the corresponding decoded video
-pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
+pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
     // nothing to do if enc_video is not in status "encoded"
     if enc_video.status() != Status::Encoded {
-        return Ok(enc_video.clone());
+        return None;
     }
 
     // MAX_CHUNK_SIZE must be a multiple of BLOCK_SIZE
     if MAX_CHUNK_SIZE % BLOCK_SIZE != 0 {
-        return Err(anyhow!(
+        return Some(anyhow!(
             "Chunk size [{}] is not a multiple of block size [{}]",
             MAX_CHUNK_SIZE,
             BLOCK_SIZE
@@ -68,25 +69,28 @@ pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
     println!("Decoding {:?} ...", enc_video.file_name());
 
     // create Video instance for decoded video
-    let dec_video = Video::new_decoded_from_encoded(enc_video).unwrap();
+    let dec_video = enc_video.next().unwrap();
     // retrieve parameters from header of encoded video file
-    let mut in_file = File::open(&enc_video)?;
-    let header_params =
-        header_params(&mut in_file).with_context(|| "Could not extract video header from")?;
+    let mut in_file = File::open(&enc_video).ok()?;
+    let header_params = header_params(&mut in_file)
+        .with_context(|| "Could not extract video header from")
+        .ok()?;
 
     // check size of encoded video file
-    if (in_file.metadata()?.len() as usize) < file_size_from_params(&header_params) {
-        return Err(anyhow!("Video file seems to be corrupt: it is too small"));
+    if (in_file.metadata().ok()?.len() as usize) < file_size_from_params(&header_params) {
+        return Some(anyhow!("Video file seems to be corrupt: it is too small"));
     }
 
     // OTR user and password
-    let access_data = cfg::otr_access_data()?;
+    let access_data = cfg::otr_access_data().ok()?;
     // current date
     let now = current_date();
     // get key that is needed to encrypt the payload of the decoding key request
-    let cbc_key = cbc_key(&access_data.user, &access_data.password, &now).with_context(|| {
-        "Could not determine CBC key for encryption of decoding key request payload"
-    })?;
+    let cbc_key = cbc_key(&access_data.user, &access_data.password, &now)
+        .with_context(|| {
+            "Could not determine CBC key for encryption of decoding key request payload"
+        })
+        .ok()?;
     // get parameters for decoding (particularly the decoding key)
     let decoding_params = decoding_params(
         &cbc_key,
@@ -97,14 +101,16 @@ pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
             &access_data.password,
             &now,
         )
-        .with_context(|| "Could not assemble request for decoding key")?,
+        .with_context(|| "Could not assemble request for decoding key")
+        .ok()?,
     )
-    .with_context(|| "Could not retrieve decoding key")?;
+    .with_context(|| "Could not retrieve decoding key")
+    .ok()?;
 
     // decode encoded video file in concurrent threads using the decoding key
     if let Err(err) = decode_in_parallel(
         &mut in_file,
-        &dec_video,
+        &(dec_video.as_ref().to_path_buf()),
         &header_params,
         decoding_params.get(PARAM_DECODING_KEY).unwrap(),
     ) {
@@ -114,20 +120,25 @@ pub fn decode(enc_video: &Video) -> anyhow::Result<Video> {
                 dec_video
             )
         });
-        return Err(err);
+        return Some(err);
     }
 
     // remove encoded video file
-    remove_file(&enc_video).with_context(|| {
-        format!(
-            "Could not remove {:?} after successful decoding",
-            enc_video.file_name()
-        )
-    })?;
+    remove_file(&enc_video)
+        .with_context(|| {
+            format!(
+                "Could not remove {:?} after successful decoding",
+                enc_video.file_name()
+            )
+        })
+        .ok()?;
+
+    // update video (status, path)
+    *enc_video = dec_video;
 
     println!("Decoded {:?}", enc_video.file_name());
 
-    Ok(dec_video)
+    None
 }
 
 /// cbc_key assembles the key that is needed to encrypt the payload of the
@@ -191,7 +202,7 @@ fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
 /// using key as decoding key and writes the result to out_path
 fn decode_in_parallel(
     in_file: &mut File,
-    out_path: &Video,
+    out_path: &PathBuf,
     header_params: &OTRParams,
     key: &str,
 ) -> anyhow::Result<()> {

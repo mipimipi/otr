@@ -45,16 +45,16 @@ impl From<anyhow::Error> for CutError {
     }
 }
 
-/// cut cuts a decoded Video and returns the cut Video
-pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
+/// cut cuts a decoded Video
+pub fn cut(dec_video: &mut Video) -> Option<CutError> {
     // nothing to do if dec_video is not in status "decoded"
     if dec_video.status() != Status::Decoded {
-        return Ok(dec_video.clone());
+        return None;
     }
 
     println!("Cutting {:?} ...", dec_video.file_name());
 
-    let cut_video = Video::new_cut_from_decoded(dec_video).unwrap();
+    let cut_video = dec_video.next().unwrap();
 
     // retrieve cutlist headers
     let headers: Vec<CutlistHeader> = match cutlist_headers(dec_video).context(format!(
@@ -62,7 +62,7 @@ pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
         dec_video.file_name()
     )) {
         Ok(hdrs) => hdrs,
-        _ => return Err(CutError::NoCutlist),
+        _ => return Some(CutError::NoCutlist),
     };
 
     // retrieve cutlists and cut video
@@ -103,7 +103,7 @@ pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
     }
 
     // in case of having cut the video successfully, move decoded video to
-    // archive directory and return with OK. Otherwise return with error
+    // archive directory. Otherwise return with error
     if is_cut {
         if let Err(err) = fs::rename(
             dec_video.as_ref(),
@@ -120,9 +120,13 @@ pub fn cut(dec_video: &Video) -> Result<Video, CutError> {
             );
         }
         println!("Cut {:?}", dec_video.file_name());
-        Ok(cut_video)
+
+        // update video (status, path)
+        *dec_video = cut_video;
+
+        None
     } else {
-        Err(CutError::Any(anyhow!(
+        Some(CutError::Any(anyhow!(
             "No cutlist could be successfully applied to cut {:?}",
             dec_video.file_name()
         )))

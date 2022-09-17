@@ -43,13 +43,26 @@ impl PartialOrd for Status {
         Some(cmp::Ordering::Less)
     }
 }
+/// Support iteration over status value: Encoded -> Decoded -> Cut -> None
+impl Iterator for Status {
+    type Item = Status;
 
-/// status_to_dir_kind maps a video status to the corresponding directory kind
-fn status_to_dir_kind(status: Status) -> DirKind {
-    match status {
-        Status::Encoded => DirKind::Encoded,
-        Status::Decoded => DirKind::Decoded,
-        Status::Cut => DirKind::Cut,
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Status::Encoded => Some(Status::Decoded),
+            Status::Decoded => Some(Status::Cut),
+            Status::Cut => None,
+        }
+    }
+}
+impl Status {
+    /// Map a video status to the corresponding directory kind
+    fn to_dir_kind(self) -> DirKind {
+        match self {
+            Status::Encoded => DirKind::Encoded,
+            Status::Decoded => DirKind::Decoded,
+            Status::Cut => DirKind::Cut,
+        }
     }
 }
 
@@ -60,6 +73,51 @@ pub struct Video {
     p: PathBuf, // path
     k: Key,     // key
     s: Status,  // status
+}
+/// Support iteration over videos: Encoded video -> decoded video -> cut video
+/// -> None
+impl Iterator for Video {
+    type Item = Video;
+
+    // In case self is of status Encoded or Decoded, a new video of with the
+    // same key, the following status (i.e., Decoded or Cut) and the
+    // corresponding path is created. Otherwise (i.e.,  self is of status Cut)
+    // None is returned
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next_status) = self.s.next() {
+            let video = Video {
+                k: self.k.clone(),
+                s: next_status,
+                p: match self.s {
+                    Status::Encoded => self
+                        .as_ref()
+                        .parent()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .join(cfg::working_sub_dir(&(next_status).to_dir_kind()).unwrap())
+                        .join(self.file_name())
+                        .with_extension(""),
+                    Status::Decoded => self
+                        .as_ref()
+                        .parent()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .join(cfg::working_sub_dir(&(next_status).to_dir_kind()).unwrap())
+                        .join(self.file_name())
+                        .with_extension(
+                            "cut".to_string()
+                                + "."
+                                + self.as_ref().extension().unwrap().to_str().unwrap(),
+                        ),
+                    _ => todo!(),
+                },
+            };
+            return Some(video);
+        }
+        None
+    }
 }
 
 impl Video {
@@ -76,62 +134,6 @@ impl Video {
     // file_name returns the file name of a Video
     pub fn file_name(&self) -> &str {
         self.p.file_name().unwrap().to_str().unwrap()
-    }
-
-    // new_decoded_from_encoded creates a new Video of status "Decoded" from a
-    // Video of status "Encoded" with the correct path (i.e., correct sub
-    // working directory and file name)
-    pub fn new_decoded_from_encoded(enc_video: &Video) -> anyhow::Result<Video> {
-        if enc_video.status() != Status::Encoded {
-            return Err(anyhow!(format!(
-                "Could not create Video instance with status 'Decoded' from {:?}",
-                enc_video.file_name()
-            )));
-        }
-
-        return Ok(Video {
-            p: enc_video
-                .as_ref()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join(cfg::working_sub_dir(&status_to_dir_kind(Status::Decoded))?)
-                .join(enc_video.file_name())
-                .with_extension(""),
-            k: enc_video.key().clone(),
-            s: Status::Decoded,
-        });
-    }
-
-    // new_cut_from_decoded creates a new Video of status "Cut" from a Video of
-    // status "Decoded" with the correct path (i.e., correct sub working
-    // directory and file name)
-    pub fn new_cut_from_decoded(dec_video: &Video) -> anyhow::Result<Video> {
-        if dec_video.status() != Status::Decoded {
-            return Err(anyhow!(format!(
-                "Could not create Video instance with status 'Cut' from {:?}",
-                dec_video.file_name()
-            )));
-        }
-
-        Ok(Video {
-            p: dec_video
-                .as_ref()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join(cfg::working_sub_dir(&status_to_dir_kind(Status::Cut))?)
-                .join(dec_video.file_name())
-                .with_extension(
-                    "cut".to_string()
-                        + "."
-                        + dec_video.as_ref().extension().unwrap().to_str().unwrap(),
-                ),
-            k: dec_video.key().clone(),
-            s: Status::Cut,
-        })
     }
 }
 
@@ -305,39 +307,34 @@ pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
     Ok(videos)
 }
 
-// Check if the video is alread cut. If that's the case, print a message.
-// Other do nothing.
-pub fn nothing_to_do(video: &Video) -> Video {
-    if video.status() == Status::Cut {
-        println!("Already cut: {:?}", video.file_name());
-    }
-    video.clone()
-}
-
 /// move_to_working_dir moves a Video to the working sub directory corresponding
 /// to its status. The Video (i.e., its path) is changed accordingly
-pub fn move_to_working_dir(video: Video) -> anyhow::Result<Video> {
+pub fn move_to_working_dir(video: &mut Video) -> Option<anyhow::Error> {
     // since video path was already checked for compliance before, it is OK to
     // simply unwrap the result
     let source_dir = video.as_ref().parent().unwrap();
 
-    let target_dir = cfg::working_sub_dir(&status_to_dir_kind(video.status()))?;
+    let target_dir = cfg::working_sub_dir(&(video.status()).to_dir_kind()).ok()?;
     let target_path = target_dir.join(video.file_name());
 
     // nothing to do if video is already in correct directory
     if source_dir == target_dir {
-        return Ok(video);
+        return None;
     }
 
-    // copy video file to working sub directory
-    fs::rename(video.as_ref(), &target_path)?;
+    // copy video file to working sub directory and adjust path
+    fs::rename(video.as_ref(), &target_path).ok()?;
+    video.p = target_path.to_path_buf();
 
-    // create and return Video instance with adjusted path
-    Ok(Video {
-        p: target_path.to_path_buf(),
-        k: video.key().clone(),
-        s: video.status(),
-    })
+    None
+}
+
+// Check if the video is alread cut. If that's the case, print a message.
+// Other do nothing.
+pub fn nothing_to_do(video: &Video) {
+    if video.status() == Status::Cut {
+        println!("Cut already: {:?}", video.file_name());
+    }
 }
 
 /// regex_uncut_video returns a regular expression to analyze the name of a
