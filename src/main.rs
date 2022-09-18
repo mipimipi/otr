@@ -13,11 +13,10 @@ mod video;
 fn process_videos() -> anyhow::Result<()> {
     // Collect video files from command line parameters and (sub) working
     // directories. They are returned as vector sorted by video key and
-    // (descending) status. (&mut ...) is used since later in the pipeline
-    // &mut Video is required as return type of iterators
-    (&mut video::collect_and_sort()?)
+    // (descending) status.
+    video::collect_and_sort()?
         // Create an iterator that delivers type &mut Video
-        .into_iter()
+        .iter_mut()
         // Move video files to the working sub directories that correspond to
         // their status
         .filter_map(|video| match video::move_to_working_dir(video) {
@@ -40,15 +39,16 @@ fn process_videos() -> anyhow::Result<()> {
         .dedup_by(|v1, v2| v1.key() == v2.key())
         // print message for already cut videos
         .map(|video| {
-            video::nothing_to_do(video);
+            if video.is_processed() {
+                println!("Processed already: {:?}", video.file_name());
+            }
             video
         })
-        // Decode videos, receive result and print error messages. Result of
-        // the closure is the video (&mut Video), whether the decoding was
-        // successful or not.
+        // Decode videos and print error messages. Result of the closure is the
+        // video (&mut Video), whether the decoding was successful or not.
         .map(|video| match decode(video) {
-            None => video,
-            Some(err) => {
+            Ok(()) => video,
+            Err(err) => {
                 eprintln!(
                     "{:?}",
                     err.context(format!("Could not decode {:?}", video.file_name()))
@@ -62,7 +62,7 @@ fn process_videos() -> anyhow::Result<()> {
         .collect::<Vec<&mut Video>>()
         .into_par_iter()
         .map(|video| {
-            if let Some(err) = cut(video) {
+            if let Err(err) = cut(video) {
                 match err {
                     CutError::Any(err) => {
                         let err = err.context(format!("Could not cut {:?}", video.file_name()));

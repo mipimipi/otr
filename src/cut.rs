@@ -47,23 +47,23 @@ impl From<anyhow::Error> for CutError {
 
 /// Cut a decoded Video. The video status and path is updated accordingly. The
 /// video file is moved accordingly.
-pub fn cut(dec_video: &mut Video) -> Option<CutError> {
-    // nothing to do if dec_video is not in status "decoded"
-    if dec_video.status() != Status::Decoded {
-        return None;
+pub fn cut(video: &mut Video) -> Result<(), CutError> {
+    // nothing to do if video is not in status "decoded"
+    if video.status() != Status::Decoded {
+        return Ok(());
     }
 
-    println!("Cutting {:?} ...", dec_video.file_name());
+    println!("Cutting {:?} ...", video.file_name());
 
-    let out_path = dec_video.next_path().ok()?;
+    let out_path = video.next_path()?;
 
     // retrieve cutlist headers
-    let headers: Vec<CutlistHeader> = match cutlist_headers(dec_video).context(format!(
+    let headers: Vec<CutlistHeader> = match cutlist_headers(video).context(format!(
         "Could not retrieve cutlists for {:?}",
-        dec_video.file_name()
+        video.file_name()
     )) {
         Ok(hdrs) => hdrs,
-        _ => return Some(CutError::NoCutlist),
+        _ => return Err(CutError::NoCutlist),
     };
 
     // retrieve cutlists and cut video
@@ -72,7 +72,7 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
         match cutlist(&header) {
             Ok(items) => {
                 // cut video with mkvmerge
-                match cut_with_mkvmerge(dec_video.as_ref(), &out_path, &header, &items) {
+                match cut_with_mkvmerge(video.as_ref(), &out_path, &header, &items) {
                     Ok(_) => {
                         // exit loop since video is cut
                         is_cut = true;
@@ -83,7 +83,7 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
                             "{:?}",
                             anyhow!(err).context(format!(
                                 "Could not cut {:?} with cutlist {}",
-                                dec_video.file_name(),
+                                video.file_name(),
                                 header.id
                             ))
                         );
@@ -96,7 +96,7 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
                     anyhow!(err).context(format!(
                         "Could not retrieve cutlist {} for {:?}",
                         header.id,
-                        dec_video.file_name()
+                        video.file_name()
                     ))
                 );
             }
@@ -107,27 +107,29 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
     // archive directory. Otherwise return with error
     if is_cut {
         if let Err(err) = fs::rename(
-            dec_video.as_ref(),
+            video.as_ref(),
             cfg::working_sub_dir(&cfg::DirKind::Archive)
                 .unwrap()
-                .join(dec_video.file_name()),
+                .join(video.file_name()),
         ) {
             eprintln!(
                 "{:?}",
                 anyhow!(err).context(format!(
                     "Could not move {:?} to archive directory after successful cutting",
-                    dec_video.file_name()
+                    video.file_name()
                 ))
             );
         }
-        println!("Cut {:?}", dec_video.file_name());
+        println!("Cut {:?}", video.file_name());
 
         // update video (status, path)
-        dec_video.set_to_next_status().map(CutError::Any)
+        video.change_to_next_status()?;
+
+        Ok(())
     } else {
-        Some(CutError::Any(anyhow!(
+        Err(CutError::Any(anyhow!(
             "No cutlist could be successfully applied to cut {:?}",
-            dec_video.file_name()
+            video.file_name()
         )))
     }
 }

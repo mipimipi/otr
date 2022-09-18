@@ -52,46 +52,44 @@ type Chunk = Vec<u8>;
 
 /// Decode an encoded video. The video status and path is updated accordingly.
 /// The video file is moved accordingly.
-pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
-    // nothing to do if enc_video is not in status "encoded"
-    if enc_video.status() != Status::Encoded {
-        return None;
+pub fn decode(video: &mut Video) -> anyhow::Result<()> {
+    // nothing to do if video is not in status "encoded"
+    if video.status() != Status::Encoded {
+        return Ok(());
     }
 
     // MAX_CHUNK_SIZE must be a multiple of BLOCK_SIZE
     if MAX_CHUNK_SIZE % BLOCK_SIZE != 0 {
-        return Some(anyhow!(
+        return Err(anyhow!(
             "Chunk size [{}] is not a multiple of block size [{}]",
             MAX_CHUNK_SIZE,
             BLOCK_SIZE
         ));
     }
 
-    println!("Decoding {:?} ...", enc_video.file_name());
+    println!("Decoding {:?} ...", video.file_name());
 
     // get path for decoded video
-    let out_path = enc_video.next_path().ok()?;
+    let out_path = video.next_path()?;
+
     // retrieve parameters from header of encoded video file
-    let mut in_file = File::open(&enc_video).ok()?;
-    let header_params = header_params(&mut in_file)
-        .with_context(|| "Could not extract video header from")
-        .ok()?;
+    let mut in_file = File::open(&video)?;
+    let header_params =
+        header_params(&mut in_file).with_context(|| "Could not extract video header from")?;
 
     // check size of encoded video file
-    if (in_file.metadata().ok()?.len() as usize) < file_size_from_params(&header_params) {
-        return Some(anyhow!("Video file seems to be corrupt: it is too small"));
+    if (in_file.metadata()?.len() as usize) < file_size_from_params(&header_params) {
+        return Err(anyhow!("Video file seems to be corrupt: it is too small"));
     }
 
     // OTR user and password
-    let access_data = cfg::otr_access_data().ok()?;
+    let access_data = cfg::otr_access_data()?;
     // current date
     let now = current_date();
     // get key that is needed to encrypt the payload of the decoding key request
-    let cbc_key = cbc_key(&access_data.user, &access_data.password, &now)
-        .with_context(|| {
-            "Could not determine CBC key for encryption of decoding key request payload"
-        })
-        .ok()?;
+    let cbc_key = cbc_key(&access_data.user, &access_data.password, &now).with_context(|| {
+        "Could not determine CBC key for encryption of decoding key request payload"
+    })?;
     // get parameters for decoding (particularly the decoding key)
     let decoding_params = decoding_params(
         &cbc_key,
@@ -102,11 +100,9 @@ pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
             &access_data.password,
             &now,
         )
-        .with_context(|| "Could not assemble request for decoding key")
-        .ok()?,
+        .with_context(|| "Could not assemble request for decoding key")?,
     )
-    .with_context(|| "Could not retrieve decoding key")
-    .ok()?;
+    .with_context(|| "Could not retrieve decoding key")?;
 
     // decode encoded video file in concurrent threads using the decoding key
     if let Err(err) = decode_in_parallel(
@@ -121,23 +117,23 @@ pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
                 out_path
             )
         });
-        return Some(err);
+        return Err(err);
     }
 
     // remove encoded video file
-    remove_file(&enc_video)
-        .with_context(|| {
-            format!(
-                "Could not remove {:?} after successful decoding",
-                enc_video.file_name()
-            )
-        })
-        .ok()?;
+    remove_file(&video).with_context(|| {
+        format!(
+            "Could not remove {:?} after successful decoding",
+            video.file_name()
+        )
+    })?;
 
-    println!("Decoded {:?}", enc_video.file_name());
+    println!("Decoded {:?}", video.file_name());
 
     // update video (status, path)
-    enc_video.set_to_next_status()
+    video.change_to_next_status()?;
+
+    Ok(())
 }
 
 /// Key that is needed to encrypt the payload of the decoding key request

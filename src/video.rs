@@ -2,7 +2,7 @@ use super::{cfg, cfg::DirKind};
 use anyhow::{anyhow, Context};
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use std::{cmp, fs, path::Path, path::PathBuf};
+use std::{cmp, fmt, fs, path::Path, path::PathBuf};
 
 /// Key of an OTR video. That's the left part of the file name ending with
 /// "_TVOON_DE". I.e., key of
@@ -11,6 +11,11 @@ use std::{cmp, fs, path::Path, path::PathBuf};
 /// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd)]
 pub struct Key(String);
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 /// Support conversion from &str to Key
 impl From<&str> for Key {
     fn from(s: &str) -> Self {
@@ -90,6 +95,11 @@ impl Video {
         self.p.file_name().unwrap().to_str().unwrap()
     }
 
+    // True if video already cut, false otherwise.
+    pub fn is_processed(&self) -> bool {
+        self.status() == Status::Cut
+    }
+
     // Path of the video it would have if it had the next status - i.e., the
     // decoded status if it is encoded now or the cut status if it is decoded
     // now. If the video is already cut, its current path is returned.
@@ -122,13 +132,14 @@ impl Video {
     // Changes the videos to the next status (i.e., if its in status encoded,
     // it is set to decoded, and if it is in status decoded it will be set to
     // cut). The video path is changed accordingly.
-    pub fn set_to_next_status(&mut self) -> Option<anyhow::Error> {
+    pub fn change_to_next_status(&mut self) -> anyhow::Result<()> {
         if let Some(next_status) = self.s.next() {
+            // NOTE: The new status must not we set before next_path() is
+            //       executed first since next_path() uses the status !!!
+            self.p = self.next_path()?;
             self.s = next_status;
-            self.p = self.next_path().ok()?
         }
-
-        None
+        Ok(())
     }
 }
 
@@ -322,14 +333,6 @@ pub fn move_to_working_dir(video: &mut Video) -> Option<anyhow::Error> {
     video.p = target_path.to_path_buf();
 
     None
-}
-
-// Check if the video is alread cut. If that's the case, print a message.
-// Other do nothing.
-pub fn nothing_to_do(video: &Video) {
-    if video.status() == Status::Cut {
-        println!("Cut already: {:?}", video.file_name());
-    }
 }
 
 /// Regular expression to analyze the name of a (potential) video file that is
