@@ -9,13 +9,16 @@ mod cut;
 mod decode;
 mod video;
 
-// process (i.e., collect, move, decode and cut) videos
+/// Process videos (i.e., collect, move, decode and cut them)
 fn process_videos() -> anyhow::Result<()> {
-    // collect video files from command line and (sub) working directories.
-    // They are returned as vector sorted by video key and (descending) status
+    // Collect video files from command line parameters and (sub) working
+    // directories. They are returned as vector sorted by video key and
+    // (descending) status. (&mut ...) is used since later in the pipeline
+    // &mut Video is required as return type of iterators
     (&mut video::collect_and_sort()?)
+        // Create an iterator that delivers type &mut Video
         .into_iter()
-        // move video files to the working sub directories that correspond to
+        // Move video files to the working sub directories that correspond to
         // their status
         .filter_map(|video| match video::move_to_working_dir(video) {
             None => Some(video),
@@ -30,16 +33,19 @@ fn process_videos() -> anyhow::Result<()> {
                 None
             }
         })
-        // remove duplicate entries of the same video with "lower" status
+        // Remove duplicate entries of the same video with "lower" status.
+        // I.e., if the same video (i.e., same key) exists, once in status
+        // encoded and once in status decoded, the video with status encoded is
+        // removed (just from the video vector, the video file is not removed).
         .dedup_by(|v1, v2| v1.key() == v2.key())
         // print message for already cut videos
         .map(|video| {
             video::nothing_to_do(video);
             video
         })
-        // decode videos, receive result and print error messages. Result of
+        // Decode videos, receive result and print error messages. Result of
         // the closure is the video (&mut Video), whether the decoding was
-        // successful or not
+        // successful or not.
         .map(|video| match decode(video) {
             None => video,
             Some(err) => {
@@ -50,9 +56,9 @@ fn process_videos() -> anyhow::Result<()> {
                 video
             }
         })
-        // cut videos in parallel and print error messages. Result of
+        // Cut videos in parallel and print error messages. Result of
         // the closure is the video (&mut Video), whether the cutting was
-        // successful or not
+        // successful or not.
         .collect::<Vec<&mut Video>>()
         .into_par_iter()
         .map(|video| {
@@ -69,13 +75,13 @@ fn process_videos() -> anyhow::Result<()> {
             }
             video
         })
-        // receive final results (i.e., results from cutting videos)
+        // Receive final results (i.e., results from cutting videos)
         .collect::<Vec<&mut Video>>();
     Ok(())
 }
 
 fn main() {
-    // process video files (collect, decode and cut them)
+    // Process video files (collect, decode and cut them)
     if let Err(err) = process_videos() {
         eprintln!("{:?}", err);
         std::process::exit(1);

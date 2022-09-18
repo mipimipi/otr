@@ -11,7 +11,7 @@ use std::{cmp, error::Error, fmt, fmt::Debug, fmt::Write, fs, path::Path, proces
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
 
-/// names for sections and attributs for INI file
+/// Names for sections and attributs for INI file
 const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
 const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
 const CUTLIST_ITEM_CUT_SECTION: &str = "Cut";
@@ -20,14 +20,14 @@ const CUTLIST_ITEM_TIMES_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
-/// special error type for cutting videos to be able to handle specific
+/// Special error type for cutting videos to be able to handle specific
 /// situations - e.g., if no cutlist exists
 #[derive(Debug)]
 pub enum CutError {
     Any(anyhow::Error),
     NoCutlist,
 }
-// support the use of "{}" format specifier
+// Support the use of "{}" format specifier
 impl fmt::Display for CutError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -36,16 +36,17 @@ impl fmt::Display for CutError {
         }
     }
 }
-// support conversion an Error into CutError
+// Support conversion an Error into CutError
 impl Error for CutError {}
-// support conversion of an anyhow::Error into CutError
+// Support conversion of an anyhow::Error into CutError
 impl From<anyhow::Error> for CutError {
     fn from(err: anyhow::Error) -> CutError {
         CutError::Any(err)
     }
 }
 
-/// cut cuts a decoded Video
+/// Cut a decoded Video. The video status and path is updated accordingly. The
+/// video file is moved accordingly.
 pub fn cut(dec_video: &mut Video) -> Option<CutError> {
     // nothing to do if dec_video is not in status "decoded"
     if dec_video.status() != Status::Decoded {
@@ -131,15 +132,14 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
     }
 }
 
-/// CutKind represents the kind of a cut - i.e., whether it is expressed in
-/// frame numbers or times
+/// Kind of a cut - i.e., whether it is expressed in frame numbers or times
 #[derive(Debug)]
 enum CutKind {
     Frames,
     Times,
 }
 
-/// CutlistHeader represents the header of a cutlist
+/// Header of a cutlist
 #[derive(Debug)]
 struct CutlistHeader {
     id: u64,
@@ -169,8 +169,8 @@ impl PartialOrd for CutlistHeader {
     }
 }
 
-/// cutlist_headers retrieves the headers of potentially existing cutlists for
-/// a Video. If no cutlists exists, an empty array but no error is returned.
+/// Retrieves the headers of potentially existing cutlists for a video. If no
+/// cutlist exists, an empty array but no error is returned.
 fn cutlist_headers(video: &Video) -> anyhow::Result<Vec<CutlistHeader>> {
     #[derive(Debug, Deserialize)]
     struct Headers {
@@ -242,7 +242,7 @@ fn cutlist_headers(video: &Video) -> anyhow::Result<Vec<CutlistHeader>> {
     Ok(headers)
 }
 
-/// CutPoint represents a start or end point of a cut
+/// Start or end point of a cut
 #[derive(Debug)]
 pub enum CutPoint {
     Frame(f64),
@@ -263,15 +263,15 @@ impl fmt::Display for CutPoint {
     }
 }
 
-/// CutlistItem represents a cut of a cutlist - i.e., a start and an end point
+/// Cut of a cutlist - i.e., a start and an end point
 #[derive(Debug)]
 struct CutlistItem {
     start: CutPoint,
     end: CutPoint,
 }
 impl CutlistItem {
-    // new creates a new CutListItem from a start point, a duration and
-    // the kind of the cut
+    // Create a new CutListItem from a start point, a duration and the kind of
+    // the cut
     fn new(start: &str, duration: &str, kind: &CutKind) -> anyhow::Result<Option<CutlistItem>> {
         // convert start and duration to floating point
         let start_f = start
@@ -300,8 +300,7 @@ impl CutlistItem {
     }
 }
 
-/// cutlist_item_attr_start returns the attribute name for start of a cut
-/// depending on the kind of the cut
+/// Attribute name for start of a cut depending on the kind of the cut.
 fn cutlist_item_attr_start(kind: &CutKind) -> String {
     match kind {
         CutKind::Frames => CUTLIST_ITEM_FRAMES_START.to_string(),
@@ -309,8 +308,7 @@ fn cutlist_item_attr_start(kind: &CutKind) -> String {
     }
 }
 
-/// cutlist_item_attr_duration returns the attribute name for the duration of a
-/// cur depending the kind of the cut
+/// Attribute name for the duration of a cut depending the kind of the cut.
 fn cutlist_item_attr_duration(kind: &CutKind) -> String {
     match kind {
         CutKind::Frames => CUTLIST_ITEM_FRAMES_DURATION.to_string(),
@@ -318,8 +316,7 @@ fn cutlist_item_attr_duration(kind: &CutKind) -> String {
     }
 }
 
-/// cutlist retrieves the cutlist (i.e., the different cuts) for a given cutlist
-/// header
+/// Retrieve the cutlist (i.e., the different cuts) for a given cutlist header
 fn cutlist(header: &CutlistHeader) -> anyhow::Result<Vec<CutlistItem>> {
     // retrieve cutlist in INI format
     let response = reqwest::blocking::get(
@@ -397,9 +394,8 @@ fn cutlist(header: &CutlistHeader) -> anyhow::Result<Vec<CutlistItem>> {
     Ok(items)
 }
 
-/// cut_with_mkvmerge cuts a video file stored in in_path with mkvmerge using
-/// the cutlist information in header and items and stores the cut video in
-/// out_path
+/// Cut a video file stored in in_path with mkvmerge using the cutlist
+/// information in header and items and stores the cut video in out_path.
 fn cut_with_mkvmerge(
     in_path: &Path,
     out_path: &Path,

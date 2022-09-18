@@ -12,7 +12,7 @@ const SUB_PATH_DECODED: &str = "Decoded";
 const SUB_PATH_CUT: &str = "Cut";
 const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
 
-/// Args holds the command line arguments
+/// Structure to holds the command line arguments
 #[derive(Parser, Debug)]
 #[clap(
     name = env!("CARGO_PKG_NAME"),
@@ -52,7 +52,7 @@ struct Args {
     videos: Vec<std::path::PathBuf>,
 }
 
-/// DirKind represents the different directory types
+/// Directory types
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub enum DirKind {
     Root,
@@ -72,7 +72,6 @@ impl fmt::Display for DirKind {
         }
     }
 }
-
 impl DirKind {
     /// Relative path for each directory kind
     pub fn relative_path<'a>(&self) -> &'a str {
@@ -86,19 +85,18 @@ impl DirKind {
     }
 }
 
-/// OTRAccessData contains user and password required for accessing services
-/// provided by the OTR website
+/// Access data (i.e., user and password) for the services provided by the OTR
+/// website
 #[derive(Debug, Default)]
 pub struct OTRAccessData {
     pub user: String,
     pub password: String,
 }
 
-/// otr_access_data determines the OTR access data. First, it is tried to
-/// retrieve that data from the command line arguments. If these do not contain
-/// the access data, they are tried to retrieved from the configuration file.
-/// The result is stored in a static variable. Thus, data is only determined
-/// once.
+/// Determine OTR access data. First, it is tried to retrieve that data from the
+/// command line arguments. If these do not contain the access data, they are
+/// tried to retrieved from the configuration file. The result is stored in a
+/// static variable. Thus, data is only determined once.
 pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
     // retrieve OTR user and password
     let data = OTRAccessData {
@@ -127,15 +125,15 @@ pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
     Ok(data)
 }
 
-/// videos returns a vector of videos whose paths have been submitted as
-/// command line arguments
+/// Videos (i.e., vector of paths of the video files) whose paths have been
+/// submitted as command line arguments.
 pub fn videos() -> &'static Vec<PathBuf> {
     &args().videos
 }
 
-/// working_sub_dir determines working sub directories (i.e., the sub directories
-/// for encoded, decoded, cut etc. videos). The directory paths are determined
-/// once only and stored in a static variable
+/// Working sub directories (i.e., the sub directories for encoded, decoded, cut
+/// etc. videos). The directory paths are determined once only and stored in a
+/// static variable.
 pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
     fn working_sub_dir_create() -> anyhow::Result<&'static HashMap<DirKind, PathBuf>> {
         static WORKING_SUB_DIRS: OnceCell<HashMap<DirKind, PathBuf>> = OnceCell::new();
@@ -174,15 +172,14 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
     ))
 }
 
-/// args returns command line arguments via Args structure. The conversion /
-/// determination into that structure is done once only. The result is stored in
-/// a static variable
+/// Command line arguments. The conversion / determination into that structure
+/// is done once only. The result is stored in a static variable.
 fn args() -> &'static Args {
     static ARGS: OnceCell<Args> = OnceCell::new();
     ARGS.get_or_init(Args::parse)
 }
 
-/// CfgFromFile holds the content of the configuration file
+/// Content of the configuration file
 #[derive(serde::Deserialize, Debug, Default)]
 struct CfgFromFile {
     working_dir: Option<PathBuf>,
@@ -190,8 +187,8 @@ struct CfgFromFile {
     password: Option<String>,
 }
 
-/// cfg_from_file retrieves the content of the configuration file. That is only
-/// done once. The result is stored in a static variable
+/// Retrieve the content of the configuration file. That is only done once. The
+/// result is stored in a static variable.
 fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
     static CFG_FROM_FILE: OnceCell<CfgFromFile> = OnceCell::new();
     CFG_FROM_FILE.get_or_try_init(|| {
@@ -219,10 +216,10 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
     })
 }
 
-/// working_dir determines the (root) working directory. First, it is tried to
-/// get it from the command line arguments. If that is not successful, it is
-/// tried to get from the configuration file. The determination is only done
-/// once. The result is stored in a static variable
+/// (Root) working directory. First, it is tried to get it from the command line
+/// arguments. If that is not successful, it is tried to get from the
+/// configuration file. The determination is only done once. The result is
+/// stored in a static variable.
 fn working_dir() -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {

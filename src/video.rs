@@ -4,28 +4,28 @@ use once_cell::sync::OnceCell;
 use regex::Regex;
 use std::{cmp, fs, path::Path, path::PathBuf};
 
-/// Key represents the key of an OTR video, that's the left part of the file
-/// name ending with "_TVOON_DE". I.e., key of
+/// Key of an OTR video. That's the left part of the file name ending with
+/// "_TVOON_DE". I.e., key of
 /// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE.mpg.HD.avi
 /// is
 /// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd)]
 pub struct Key(String);
-/// support conversion from &str to Key
+/// Support conversion from &str to Key
 impl From<&str> for Key {
     fn from(s: &str) -> Self {
         Key(s.to_string())
     }
 }
-/// support conversion from String to Key
+/// Support conversion from String to Key
 impl From<String> for Key {
     fn from(s: String) -> Self {
         Key(s)
     }
 }
 
-/// Status represents the status of a video - i.e., whether its encoded,
-/// decoded or cut. The status can be ordered: Encoded < Decoded < Cut
+/// Status of a video - i.e., whether its encoded, decoded or cut. The status
+/// can be ordered: Encoded < Decoded < Cut
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Status {
     Encoded,
@@ -66,8 +66,7 @@ impl Status {
     }
 }
 
-/// Video represents a video file downloaded from OTR, incl. its path, key and
-/// status
+/// Video file downloaded from OTR, incl. its path, key and status
 #[derive(Clone, Debug)]
 pub struct Video {
     p: PathBuf, // path
@@ -76,24 +75,24 @@ pub struct Video {
 }
 
 impl Video {
-    // key returns the key of a Video
+    // Key of a Video
     pub fn key(&self) -> &Key {
         &self.k
     }
 
-    // status returns the status of a Video
+    // Status of a Video
     pub fn status(&self) -> Status {
         self.s
     }
 
-    // file_name returns the file name of a Video
+    // File name of a Video (i.e., the last part of its path)
     pub fn file_name(&self) -> &str {
         self.p.file_name().unwrap().to_str().unwrap()
     }
 
-    // returns the path of the video it would have if it had the next status -
-    // i.e., the decoded status if it is encoded now or the cut status if it is
-    // decoded now. If the video is already cut, its current path is returned.
+    // Path of the video it would have if it had the next status - i.e., the
+    // decoded status if it is encoded now or the cut status if it is decoded
+    // now. If the video is already cut, its current path is returned.
     pub fn next_path(&self) -> anyhow::Result<PathBuf> {
         match self.s {
             Status::Encoded => Ok(self
@@ -193,14 +192,14 @@ impl TryFrom<&PathBuf> for Video {
     }
 }
 
-/// support usage of Video as &Path
+/// Support usage of Video as &Path
 impl AsRef<Path> for Video {
     fn as_ref(&self) -> &Path {
         &self.p
     }
 }
 
-/// support ordering of videos: By key (ascending), status (descending)
+/// Support ordering of videos: By key (ascending), status (descending)
 impl Eq for Video {}
 impl Ord for Video {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
@@ -230,10 +229,10 @@ impl PartialOrd for Video {
     }
 }
 
-/// collect_and_sort collects video files from the working (sub) directories and
-/// from the paths submitted via the command line, creates the corresponding
-/// Video instances and returns them as vector, sorted by key (ascending) and
-/// status (descending)
+/// Collect video files from the working (sub) directories and from the paths
+/// submitted via the command line, creates the corresponding Video instances
+/// and returns them as vector, sorted by key (ascending) and status
+/// (descending).
 pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
     // collect_videos_from_dir collects videos from the directory that is
     // assigned to kind dir_kind
@@ -303,8 +302,8 @@ pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
     Ok(videos)
 }
 
-/// move_to_working_dir moves a Video to the working sub directory corresponding
-/// to its status. The Video (i.e., its path) is changed accordingly
+/// Moves a video file to the working sub directory corresponding to the status
+/// of the video. The Video (i.e., its path) is changed accordingly.
 pub fn move_to_working_dir(video: &mut Video) -> Option<anyhow::Error> {
     // since video path was already checked for compliance before, it is OK to
     // simply unwrap the result
@@ -333,8 +332,8 @@ pub fn nothing_to_do(video: &Video) {
     }
 }
 
-/// regex_uncut_video returns a regular expression to analyze the name of a
-/// (potential) video file that is not cut - i.e., either encoded or decoded
+/// Regular expression to analyze the name of a (potential) video file that is
+/// not cut - i.e., either encoded or decoded.
 fn regex_uncut_video() -> &'static Regex {
     static RE_VALID_VIDEO: OnceCell<Regex> = OnceCell::new();
     RE_VALID_VIDEO.get_or_init(|| {
@@ -342,8 +341,8 @@ fn regex_uncut_video() -> &'static Regex {
     })
 }
 
-/// regex_cut_video returns a regular expression to analyze the name of a
-/// (potential) video file that is cut
+/// Regular expression to analyze the name of a (potential) video file that is
+/// cut
 fn regex_cut_video() -> &'static Regex {
     static RE_VALID_VIDEO: OnceCell<Regex> = OnceCell::new();
     RE_VALID_VIDEO.get_or_init(|| {
