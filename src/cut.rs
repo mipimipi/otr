@@ -54,7 +54,7 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
 
     println!("Cutting {:?} ...", dec_video.file_name());
 
-    let cut_video = dec_video.next().unwrap();
+    let out_path = dec_video.next_path().ok()?;
 
     // retrieve cutlist headers
     let headers: Vec<CutlistHeader> = match cutlist_headers(dec_video).context(format!(
@@ -71,7 +71,7 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
         match cutlist(&header) {
             Ok(items) => {
                 // cut video with mkvmerge
-                match cut_with_mkvmerge(dec_video.as_ref(), cut_video.as_ref(), &header, &items) {
+                match cut_with_mkvmerge(dec_video.as_ref(), &out_path, &header, &items) {
                     Ok(_) => {
                         // exit loop since video is cut
                         is_cut = true;
@@ -122,9 +122,7 @@ pub fn cut(dec_video: &mut Video) -> Option<CutError> {
         println!("Cut {:?}", dec_video.file_name());
 
         // update video (status, path)
-        *dec_video = cut_video;
-
-        None
+        dec_video.set_to_next_status().map(CutError::Any)
     } else {
         Some(CutError::Any(anyhow!(
             "No cutlist could be successfully applied to cut {:?}",

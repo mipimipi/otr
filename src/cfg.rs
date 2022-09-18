@@ -73,15 +73,16 @@ impl fmt::Display for DirKind {
     }
 }
 
-/// dir_kind_to_sub_path returns the relative sub directory path for each
-/// directory kind
-pub fn dir_kind_to_sub_path<'a>(dir_kind: &DirKind) -> &'a str {
-    match dir_kind {
-        DirKind::Root => SUB_PATH_ROOT,
-        DirKind::Encoded => SUB_PATH_ENCODED,
-        DirKind::Decoded => SUB_PATH_DECODED,
-        DirKind::Cut => SUB_PATH_CUT,
-        DirKind::Archive => SUB_PATH_ARCHIVE,
+impl DirKind {
+    /// Relative path for each directory kind
+    pub fn relative_path<'a>(&self) -> &'a str {
+        match self {
+            DirKind::Root => SUB_PATH_ROOT,
+            DirKind::Encoded => SUB_PATH_ENCODED,
+            DirKind::Decoded => SUB_PATH_DECODED,
+            DirKind::Cut => SUB_PATH_CUT,
+            DirKind::Archive => SUB_PATH_ARCHIVE,
+        }
     }
 }
 
@@ -148,7 +149,7 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
                 DirKind::Cut,
                 DirKind::Archive,
             ] {
-                let sub_dir = working_dir.join(dir_kind_to_sub_path(&dir_kind));
+                let sub_dir = working_dir.join(dir_kind.relative_path());
                 fs::create_dir_all(&sub_dir)
                     .with_context(|| format!("could not create sub directory {:?}", sub_dir))?;
                 kind_to_path.insert(dir_kind, sub_dir);

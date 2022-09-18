@@ -57,7 +57,7 @@ impl Iterator for Status {
 }
 impl Status {
     /// Map a video status to the corresponding directory kind
-    fn to_dir_kind(self) -> DirKind {
+    fn as_dir_kind(self) -> DirKind {
         match self {
             Status::Encoded => DirKind::Encoded,
             Status::Decoded => DirKind::Decoded,
@@ -73,51 +73,6 @@ pub struct Video {
     p: PathBuf, // path
     k: Key,     // key
     s: Status,  // status
-}
-/// Support iteration over videos: Encoded video -> decoded video -> cut video
-/// -> None
-impl Iterator for Video {
-    type Item = Video;
-
-    // In case self is of status Encoded or Decoded, a new video of with the
-    // same key, the following status (i.e., Decoded or Cut) and the
-    // corresponding path is created. Otherwise (i.e.,  self is of status Cut)
-    // None is returned
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(next_status) = self.s.next() {
-            let video = Video {
-                k: self.k.clone(),
-                s: next_status,
-                p: match self.s {
-                    Status::Encoded => self
-                        .as_ref()
-                        .parent()
-                        .unwrap()
-                        .parent()
-                        .unwrap()
-                        .join(cfg::working_sub_dir(&(next_status).to_dir_kind()).unwrap())
-                        .join(self.file_name())
-                        .with_extension(""),
-                    Status::Decoded => self
-                        .as_ref()
-                        .parent()
-                        .unwrap()
-                        .parent()
-                        .unwrap()
-                        .join(cfg::working_sub_dir(&(next_status).to_dir_kind()).unwrap())
-                        .join(self.file_name())
-                        .with_extension(
-                            "cut".to_string()
-                                + "."
-                                + self.as_ref().extension().unwrap().to_str().unwrap(),
-                        ),
-                    _ => todo!(),
-                },
-            };
-            return Some(video);
-        }
-        None
-    }
 }
 
 impl Video {
@@ -135,9 +90,50 @@ impl Video {
     pub fn file_name(&self) -> &str {
         self.p.file_name().unwrap().to_str().unwrap()
     }
+
+    // returns the path of the video it would have if it had the next status -
+    // i.e., the decoded status if it is encoded now or the cut status if it is
+    // decoded now. If the video is already cut, its current path is returned.
+    pub fn next_path(&self) -> anyhow::Result<PathBuf> {
+        match self.s {
+            Status::Encoded => Ok(self
+                .as_ref()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(cfg::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
+                .join(self.file_name())
+                .with_extension("")),
+            Status::Decoded => Ok(self
+                .as_ref()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(cfg::working_sub_dir(&(Status::Cut).as_dir_kind())?)
+                .join(self.file_name())
+                .with_extension(
+                    "cut".to_string() + "." + self.as_ref().extension().unwrap().to_str().unwrap(),
+                )),
+            _ => Ok(self.p.to_path_buf()),
+        }
+    }
+
+    // Changes the videos to the next status (i.e., if its in status encoded,
+    // it is set to decoded, and if it is in status decoded it will be set to
+    // cut). The video path is changed accordingly.
+    pub fn set_to_next_status(&mut self) -> Option<anyhow::Error> {
+        if let Some(next_status) = self.s.next() {
+            self.s = next_status;
+            self.p = self.next_path().ok()?
+        }
+
+        None
+    }
 }
 
-/// support conversion of a &PathBuf into a Video. Usage of From trait is not
+/// Support conversion of a &PathBuf into a Video. Usage of From trait is not
 /// possible since not all paths represent OTR videos and thus, an error can
 /// occur
 impl TryFrom<&PathBuf> for Video {
@@ -314,7 +310,7 @@ pub fn move_to_working_dir(video: &mut Video) -> Option<anyhow::Error> {
     // simply unwrap the result
     let source_dir = video.as_ref().parent().unwrap();
 
-    let target_dir = cfg::working_sub_dir(&(video.status()).to_dir_kind()).ok()?;
+    let target_dir = cfg::working_sub_dir(&(video.status()).as_dir_kind()).ok()?;
     let target_path = target_dir.join(video.file_name());
 
     // nothing to do if video is already in correct directory

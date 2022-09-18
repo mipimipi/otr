@@ -68,8 +68,8 @@ pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
 
     println!("Decoding {:?} ...", enc_video.file_name());
 
-    // create Video instance for decoded video
-    let dec_video = enc_video.next().unwrap();
+    // get path for decoded video
+    let out_path = enc_video.next_path().ok()?;
     // retrieve parameters from header of encoded video file
     let mut in_file = File::open(&enc_video).ok()?;
     let header_params = header_params(&mut in_file)
@@ -110,14 +110,14 @@ pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
     // decode encoded video file in concurrent threads using the decoding key
     if let Err(err) = decode_in_parallel(
         &mut in_file,
-        &(dec_video.as_ref().to_path_buf()),
+        &out_path,
         &header_params,
         decoding_params.get(PARAM_DECODING_KEY).unwrap(),
     ) {
-        remove_file(&dec_video).unwrap_or_else(|_| {
+        remove_file(&out_path).unwrap_or_else(|_| {
             panic!(
                 "Could not delete file {:?} after error when decoding video",
-                dec_video
+                out_path
             )
         });
         return Some(err);
@@ -133,12 +133,10 @@ pub fn decode(enc_video: &mut Video) -> Option<anyhow::Error> {
         })
         .ok()?;
 
-    // update video (status, path)
-    *enc_video = dec_video;
-
     println!("Decoded {:?}", enc_video.file_name());
 
-    None
+    // update video (status, path)
+    enc_video.set_to_next_status()
 }
 
 /// cbc_key assembles the key that is needed to encrypt the payload of the
