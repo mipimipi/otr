@@ -1,5 +1,4 @@
 use super::cfg;
-use super::video::{Status, Video};
 use anyhow::{anyhow, Context};
 use block_modes::block_padding::NoPadding;
 use block_modes::{BlockMode, Cbc, Ecb};
@@ -50,14 +49,9 @@ type OTRParams = HashMap<String, String>;
 /// Part of a video file for concurrent decoding
 type Chunk = Vec<u8>;
 
-/// Decode an encoded video. The video status and path is updated accordingly.
-/// The video file is moved accordingly.
-pub fn decode(video: &mut Video) -> anyhow::Result<()> {
-    // nothing to do if video is not in status "encoded"
-    if video.status() != Status::Encoded {
-        return Ok(());
-    }
-
+/// Decode a encoded video file. in_path is the path of the decoded video file.
+/// out_path is the path of the cut video file.
+pub fn decode(in_path: PathBuf, out_path: PathBuf) -> anyhow::Result<()> {
     // MAX_CHUNK_SIZE must be a multiple of BLOCK_SIZE
     if MAX_CHUNK_SIZE % BLOCK_SIZE != 0 {
         return Err(anyhow!(
@@ -67,13 +61,8 @@ pub fn decode(video: &mut Video) -> anyhow::Result<()> {
         ));
     }
 
-    println!("Decoding {:?} ...", video.file_name());
-
-    // get path for decoded video
-    let out_path = video.next_path()?;
-
     // retrieve parameters from header of encoded video file
-    let mut in_file = File::open(&video)?;
+    let mut in_file = File::open(&in_path)?;
     let header_params =
         header_params(&mut in_file).with_context(|| "Could not extract video header from")?;
 
@@ -121,17 +110,12 @@ pub fn decode(video: &mut Video) -> anyhow::Result<()> {
     }
 
     // remove encoded video file
-    remove_file(&video).with_context(|| {
+    remove_file(&in_path).with_context(|| {
         format!(
             "Could not remove {:?} after successful decoding",
-            video.file_name()
+            in_path.file_name().unwrap().to_str().unwrap()
         )
     })?;
-
-    println!("Decoded {:?}", video.file_name());
-
-    // update video (status, path)
-    video.change_to_next_status()?;
 
     Ok(())
 }

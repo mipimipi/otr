@@ -1,17 +1,16 @@
-use super::{
-    cfg,
-    video::{Status, Video},
-};
 use anyhow::{anyhow, Context};
 use ini::Ini;
 use serde::Deserialize;
-use std::{cmp, error::Error, fmt, fmt::Debug, fmt::Write, fs, path::Path, process::Command, str};
+use std::{
+    cmp, error::Error, fmt, fmt::Debug, fmt::Write, path::Path, path::PathBuf, process::Command,
+    str,
+};
 
 /// URI's for the retrieval of cutlist data
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
 
-/// Names for sections and attributs for INI file
+/// Names for sections and attributs of INI file
 const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
 const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
 const CUTLIST_ITEM_CUT_SECTION: &str = "Cut";
@@ -27,7 +26,7 @@ pub enum CutError {
     Any(anyhow::Error),
     NoCutlist,
 }
-// Support the use of "{}" format specifier
+/// Support the use of "{}" format specifier
 impl fmt::Display for CutError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -36,32 +35,24 @@ impl fmt::Display for CutError {
         }
     }
 }
-// Support conversion an Error into CutError
+/// Support conversion an Error into a CutError
 impl Error for CutError {}
-// Support conversion of an anyhow::Error into CutError
+/// Support conversion of an anyhow::Error into CutError
 impl From<anyhow::Error> for CutError {
     fn from(err: anyhow::Error) -> CutError {
         CutError::Any(err)
     }
 }
 
-/// Cut a decoded Video. The video status and path is updated accordingly. The
-/// video file is moved accordingly.
-pub fn cut(video: &mut Video) -> Result<(), CutError> {
-    // nothing to do if video is not in status "decoded"
-    if video.status() != Status::Decoded {
-        return Ok(());
-    }
-
-    println!("Cutting {:?} ...", video.file_name());
-
-    let out_path = video.next_path()?;
+/// Cut a decoded video file. in_path is the path of the decoded video file.
+/// out_path is the path of the cut video file.
+pub fn cut(in_path: PathBuf, out_path: PathBuf) -> Result<(), CutError> {
+    let file_name = in_path.file_name().unwrap().to_str().unwrap();
 
     // retrieve cutlist headers
-    let headers: Vec<CutlistHeader> = match cutlist_headers(video).context(format!(
-        "Could not retrieve cutlists for {:?}",
-        video.file_name()
-    )) {
+    let headers: Vec<CutlistHeader> = match cutlist_headers(file_name)
+        .context(format!("Could not retrieve cutlists for {:?}", file_name))
+    {
         Ok(hdrs) => hdrs,
         _ => return Err(CutError::NoCutlist),
     };
@@ -72,7 +63,7 @@ pub fn cut(video: &mut Video) -> Result<(), CutError> {
         match cutlist(&header) {
             Ok(items) => {
                 // cut video with mkvmerge
-                match cut_with_mkvmerge(video.as_ref(), &out_path, &header, &items) {
+                match cut_with_mkvmerge(&in_path, &out_path, &header, &items) {
                     Ok(_) => {
                         // exit loop since video is cut
                         is_cut = true;
@@ -83,8 +74,7 @@ pub fn cut(video: &mut Video) -> Result<(), CutError> {
                             "{:?}",
                             anyhow!(err).context(format!(
                                 "Could not cut {:?} with cutlist {}",
-                                video.file_name(),
-                                header.id
+                                file_name, header.id
                             ))
                         );
                     }
@@ -95,43 +85,21 @@ pub fn cut(video: &mut Video) -> Result<(), CutError> {
                     "{:?}",
                     anyhow!(err).context(format!(
                         "Could not retrieve cutlist {} for {:?}",
-                        header.id,
-                        video.file_name()
+                        header.id, file_name
                     ))
                 );
             }
         }
     }
 
-    // in case of having cut the video successfully, move decoded video to
-    // archive directory. Otherwise return with error
-    if is_cut {
-        if let Err(err) = fs::rename(
-            video.as_ref(),
-            cfg::working_sub_dir(&cfg::DirKind::Archive)
-                .unwrap()
-                .join(video.file_name()),
-        ) {
-            eprintln!(
-                "{:?}",
-                anyhow!(err).context(format!(
-                    "Could not move {:?} to archive directory after successful cutting",
-                    video.file_name()
-                ))
-            );
-        }
-        println!("Cut {:?}", video.file_name());
-
-        // update video (status, path)
-        video.change_to_next_status()?;
-
-        Ok(())
-    } else {
-        Err(CutError::Any(anyhow!(
+    if !is_cut {
+        return Err(CutError::Any(anyhow!(
             "No cutlist could be successfully applied to cut {:?}",
-            video.file_name()
-        )))
+            file_name
+        )));
     }
+
+    Ok(())
 }
 
 /// Kind of a cut - i.e., whether it is expressed in frame numbers or times
@@ -173,7 +141,7 @@ impl PartialOrd for CutlistHeader {
 
 /// Retrieves the headers of potentially existing cutlists for a video. If no
 /// cutlist exists, an empty array but no error is returned.
-fn cutlist_headers(video: &Video) -> anyhow::Result<Vec<CutlistHeader>> {
+fn cutlist_headers(file_name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
     #[derive(Debug, Deserialize)]
     struct Headers {
         #[serde(rename = "cutlist")]
@@ -187,8 +155,6 @@ fn cutlist_headers(video: &Video) -> anyhow::Result<Vec<CutlistHeader>> {
         with_frames: String,
         errors: String,
     }
-
-    let file_name = video.file_name();
 
     let response = reqwest::blocking::get(CUTLIST_RETRIEVE_HEADERS_URI.to_string() + file_name)
         .with_context(|| {

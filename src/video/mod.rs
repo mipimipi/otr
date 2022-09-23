@@ -1,8 +1,14 @@
 use super::{cfg, cfg::DirKind};
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use std::{cmp, fmt, fs, path::Path, path::PathBuf};
+use std::{cmp, fmt, fs, path::PathBuf};
+
+pub use collecting::collect;
+
+mod collecting;
+mod cutting;
+mod decoding;
 
 /// Key of an OTR video. That's the left part of the file name ending with
 /// "_TVOON_DE". I.e., key of
@@ -79,70 +85,6 @@ pub struct Video {
     s: Status,  // status
 }
 
-impl Video {
-    // Key of a Video
-    pub fn key(&self) -> &Key {
-        &self.k
-    }
-
-    // Status of a Video
-    pub fn status(&self) -> Status {
-        self.s
-    }
-
-    // File name of a Video (i.e., the last part of its path)
-    pub fn file_name(&self) -> &str {
-        self.p.file_name().unwrap().to_str().unwrap()
-    }
-
-    // True if video already cut, false otherwise.
-    pub fn is_processed(&self) -> bool {
-        self.status() == Status::Cut
-    }
-
-    // Path of the video it would have if it had the next status - i.e., the
-    // decoded status if it is encoded now or the cut status if it is decoded
-    // now. If the video is already cut, its current path is returned.
-    pub fn next_path(&self) -> anyhow::Result<PathBuf> {
-        match self.s {
-            Status::Encoded => Ok(self
-                .as_ref()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join(cfg::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
-                .join(self.file_name())
-                .with_extension("")),
-            Status::Decoded => Ok(self
-                .as_ref()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join(cfg::working_sub_dir(&(Status::Cut).as_dir_kind())?)
-                .join(self.file_name())
-                .with_extension(
-                    "cut".to_string() + "." + self.as_ref().extension().unwrap().to_str().unwrap(),
-                )),
-            _ => Ok(self.p.to_path_buf()),
-        }
-    }
-
-    // Changes the videos to the next status (i.e., if its in status encoded,
-    // it is set to decoded, and if it is in status decoded it will be set to
-    // cut). The video path is changed accordingly.
-    pub fn change_to_next_status(&mut self) -> anyhow::Result<()> {
-        if let Some(next_status) = self.s.next() {
-            // NOTE: The new status must not we set before next_path() is
-            //       executed first since next_path() uses the status !!!
-            self.p = self.next_path()?;
-            self.s = next_status;
-        }
-        Ok(())
-    }
-}
-
 /// Support conversion of a &PathBuf into a Video. Usage of From trait is not
 /// possible since not all paths represent OTR videos and thus, an error can
 /// occur
@@ -203,13 +145,6 @@ impl TryFrom<&PathBuf> for Video {
     }
 }
 
-/// Support usage of Video as &Path
-impl AsRef<Path> for Video {
-    fn as_ref(&self) -> &Path {
-        &self.p
-    }
-}
-
 /// Support ordering of videos: By key (ascending), status (descending)
 impl Eq for Video {}
 impl Ord for Video {
@@ -240,99 +175,163 @@ impl PartialOrd for Video {
     }
 }
 
-/// Collect video files from the working (sub) directories and from the paths
-/// submitted via the command line, creates the corresponding Video instances
-/// and returns them as vector, sorted by key (ascending) and status
-/// (descending).
-pub fn collect_and_sort() -> anyhow::Result<Vec<Video>> {
-    // collect_videos_from_dir collects videos from the directory that is
-    // assigned to kind dir_kind
-    fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
-        let mut videos: Vec<Video> = Vec::new();
-        let dir = cfg::working_sub_dir(dir_kind)
-            .context(format!("Could determine '{:?}' directory", &dir_kind))?;
-        if !dir.is_dir() {
-            return Err(anyhow!(format!("{:?} is not a directory: Ignored", dir)));
+impl Video {
+    // Key of a Video
+    pub fn key(&self) -> &Key {
+        &self.k
+    }
+
+    // Status of a Video
+    pub fn status(&self) -> Status {
+        self.s
+    }
+
+    // File name of a Video (i.e., the last part of its path)
+    pub fn file_name(&self) -> &str {
+        self.p.file_name().unwrap().to_str().unwrap()
+    }
+
+    // True if video already cut, false otherwise.
+    pub fn is_processed(&self) -> bool {
+        self.status() == Status::Cut
+    }
+
+    // Changes the videos to the next status (i.e., if its in status encoded,
+    // it is set to decoded, and if it is in status decoded it will be set to
+    // cut). The video path is changed accordingly.
+    pub fn change_to_next_status(&mut self) -> anyhow::Result<()> {
+        if let Some(next_status) = self.s.next() {
+            // NOTE: The new status must not we set before next_path() is
+            //       executed first since next_path() uses the status !!!
+            self.p = self.next_path()?;
+            self.s = next_status;
         }
-        for file in fs::read_dir(dir)
-            .with_context(|| format!("Could not read '{:?}' directory", &dir_kind))?
-        {
-            if !file.as_ref().unwrap().file_type().unwrap().is_file() {
-                continue;
+        Ok(())
+    }
+
+    /// Cut a decoded Video. The video status and path is updated accordingly. The
+    /// video file is moved accordingly.
+    pub fn cut(&mut self) -> anyhow::Result<()> {
+        // nothing to do if video is not in status "decoded"
+        if self.status() != Status::Decoded {
+            return Ok(());
+        }
+
+        println!("Cutting {:?} ...", self.file_name());
+
+        let out_path = self.next_path()?;
+
+        // execute cutting of video
+        if let Err(err) = cutting::cut(self.p.to_path_buf(), out_path) {
+            match err {
+                cutting::CutError::Any(err) => {
+                    let err = err.context(format!("Could not cut {:?}", self.file_name()));
+                    eprintln!("{:?}", err);
+                }
+                cutting::CutError::NoCutlist => {
+                    println!("No cutlist exists for {:?}", self.file_name());
+                }
             }
 
-            match Video::try_from(&file.as_ref().unwrap().path()) {
-                Ok(video) => {
-                    videos.push(video);
-                }
-                Err(_) => {
-                    println!(
-                        "{:?} is not a valid video file: Ignored",
-                        &file.as_ref().unwrap().path()
-                    );
-                    continue;
-                }
-            }
+            return Ok(());
         }
-        Ok(videos)
-    }
 
-    let mut videos: Vec<Video> = Vec::new();
-
-    // collect videos from command line parameters
-    for path in cfg::videos() {
-        if let Ok(video) = Video::try_from(path) {
-            videos.push(video);
-            continue;
+        // in case of having cut the video successfully, move decoded video to
+        // archive directory. Otherwise return with error
+        if let Err(err) = fs::rename(
+            &self.p,
+            cfg::working_sub_dir(&cfg::DirKind::Archive)
+                .unwrap()
+                .join(self.file_name()),
+        ) {
+            eprintln!(
+                "{:?}",
+                anyhow!(err).context(format!(
+                    "Could not move {:?} to archive directory after successful cutting",
+                    self.file_name()
+                ))
+            );
         }
-        println!("{:?} is not a valid video file: Ignored", path)
+
+        // update video (status, path)
+        self.change_to_next_status()?;
+
+        println!("Cut {:?}", self.file_name());
+
+        Ok(())
     }
 
-    // if no videos have been submiited via command line: collect videos from
-    // working (sub) directories
-    if videos.is_empty() {
-        for dir_kind in [
-            DirKind::Root,
-            DirKind::Encoded,
-            DirKind::Decoded,
-            DirKind::Cut,
-        ] {
-            videos.append(&mut collect_videos_from_dir(&dir_kind).context(format!(
-                "Could not retrieve videos from '{:?}' sub directory",
-                &dir_kind
-            ))?);
+    /// Decode an encoded video. The video status and path is updated accordingly.
+    /// The video file is moved accordingly.
+    pub fn decode(&mut self) -> anyhow::Result<()> {
+        // nothing to do if video is not in status "encoded"
+        if self.status() != Status::Encoded {
+            return Ok(());
+        }
+
+        println!("Decoding {:?} ...", self.file_name());
+
+        // execute decoding
+        decoding::decode(self.p.to_path_buf(), self.next_path()?)?;
+
+        println!("Decoded {:?}", self.file_name());
+
+        // update video (status, path)
+        self.change_to_next_status()?;
+
+        Ok(())
+    }
+
+    // Path of the video it would have if it had the next status - i.e., the
+    // decoded status if it is encoded now or the cut status if it is decoded
+    // now. If the video is already cut, its current path is returned.
+    pub fn next_path(&self) -> anyhow::Result<PathBuf> {
+        match self.s {
+            Status::Encoded => Ok(self
+                .p
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(cfg::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
+                .join(self.file_name())
+                .with_extension("")),
+            Status::Decoded => Ok(self
+                .p
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(cfg::working_sub_dir(&(Status::Cut).as_dir_kind())?)
+                .join(self.file_name())
+                .with_extension(
+                    "cut".to_string() + "." + self.p.extension().unwrap().to_str().unwrap(),
+                )),
+            _ => Ok(self.p.to_path_buf()),
         }
     }
 
-    if videos.is_empty() {
-        println!("No videos found :(");
-    } else {
-        videos.sort();
+    /// Moves a video file to the working sub directory corresponding to the status
+    /// of the video. The Video (i.e., its path) is changed accordingly.
+    fn move_to_working_dir(&mut self) -> anyhow::Result<()> {
+        // since video path was already checked for compliance before, it is OK to
+        // simply unwrap the result
+        let source_dir = self.p.parent().unwrap();
+
+        let target_dir = cfg::working_sub_dir(&(self.status()).as_dir_kind())?;
+        let target_path = target_dir.join(self.file_name());
+
+        // nothing to do if video is already in correct directory
+        if source_dir == target_dir {
+            return Ok(());
+        }
+
+        // copy video file to working sub directory and adjust path
+        fs::rename(&self.p, &target_path)?;
+        self.p = target_path.to_path_buf();
+
+        Ok(())
     }
-
-    Ok(videos)
-}
-
-/// Moves a video file to the working sub directory corresponding to the status
-/// of the video. The Video (i.e., its path) is changed accordingly.
-pub fn move_to_working_dir(video: &mut Video) -> Option<anyhow::Error> {
-    // since video path was already checked for compliance before, it is OK to
-    // simply unwrap the result
-    let source_dir = video.as_ref().parent().unwrap();
-
-    let target_dir = cfg::working_sub_dir(&(video.status()).as_dir_kind()).ok()?;
-    let target_path = target_dir.join(video.file_name());
-
-    // nothing to do if video is already in correct directory
-    if source_dir == target_dir {
-        return None;
-    }
-
-    // copy video file to working sub directory and adjust path
-    fs::rename(video.as_ref(), &target_path).ok()?;
-    video.p = target_path.to_path_buf();
-
-    None
 }
 
 /// Regular expression to analyze the name of a (potential) video file that is
