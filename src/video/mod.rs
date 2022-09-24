@@ -2,7 +2,7 @@ use super::{cfg, cfg::DirKind};
 use anyhow::anyhow;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use std::{cmp, fmt, fs, path::PathBuf};
+use std::{cmp, fmt, fs, path::Path, path::PathBuf};
 
 pub use collecting::collect;
 
@@ -15,7 +15,7 @@ mod decoding;
 /// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE.mpg.HD.avi
 /// is
 /// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE
-#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Hash, PartialEq, PartialOrd)]
 pub struct Key(String);
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -37,7 +37,7 @@ impl From<String> for Key {
 
 /// Status of a video - i.e., whether its encoded, decoded or cut. The status
 /// can be ordered: Encoded < Decoded < Cut
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum Status {
     Encoded,
     Decoded,
@@ -174,6 +174,13 @@ impl PartialOrd for Video {
     }
 }
 
+/// Support conversion of Video to Path ref
+impl AsRef<Path> for Video {
+    fn as_ref(&self) -> &Path {
+        &self.p
+    }
+}
+
 impl Video {
     // Key of a Video
     pub fn key(&self) -> &Key {
@@ -206,7 +213,7 @@ impl Video {
         println!("Cutting {:?} ...", self.file_name());
 
         // execute cutting of video
-        if let Err(err) = cutting::cut(&self.p, (self.next_path()?).as_path()) {
+        if let Err(err) = cutting::cut(&self, &self.next_path()?) {
             match err {
                 cutting::CutError::Any(err) => {
                     let err = err.context(format!("Could not cut {:?}", self.file_name()));
@@ -256,7 +263,7 @@ impl Video {
         println!("Decoding {:?} ...", self.file_name());
 
         // execute decoding
-        decoding::decode(&self.p, (self.next_path()?).as_path())?;
+        decoding::decode(&self, &self.next_path()?)?;
 
         println!("Decoded {:?}", self.file_name());
 

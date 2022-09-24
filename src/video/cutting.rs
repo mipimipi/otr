@@ -43,8 +43,12 @@ impl From<anyhow::Error> for CutError {
 
 /// Cut a decoded video file. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-pub fn cut(in_path: &Path, out_path: &Path) -> Result<(), CutError> {
-    let file_name = in_path.file_name().unwrap().to_str().unwrap();
+pub fn cut<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
 
     // retrieve cutlist headers
     let headers: Vec<CutlistHeader> = match cutlist_headers(file_name)
@@ -60,7 +64,7 @@ pub fn cut(in_path: &Path, out_path: &Path) -> Result<(), CutError> {
         match cutlist(&header) {
             Ok(items) => {
                 // cut video with mkvmerge
-                match cut_with_mkvmerge(in_path, out_path, &header, &items) {
+                match cut_with_mkvmerge(&in_path, &out_path, &header, &items) {
                     Ok(_) => {
                         // exit loop since video is cut
                         is_cut = true;
@@ -100,14 +104,12 @@ pub fn cut(in_path: &Path, out_path: &Path) -> Result<(), CutError> {
 }
 
 /// Kind of a cut - i.e., whether it is expressed in frame numbers or times
-#[derive(Debug)]
 enum CutKind {
     Frames,
     Times,
 }
 
 /// Header of a cutlist
-#[derive(Debug)]
 struct CutlistHeader {
     id: u64,
     rating: f64,
@@ -229,7 +231,7 @@ impl fmt::Display for CutPoint {
 }
 
 /// Cut of a cutlist - i.e., a start and an end point
-#[derive(Debug)]
+/// #[derive(Debug)]
 struct CutlistItem {
     start: CutPoint,
     end: CutPoint,
@@ -361,12 +363,16 @@ fn cutlist(header: &CutlistHeader) -> anyhow::Result<Vec<CutlistItem>> {
 
 /// Cut a video file stored in in_path with mkvmerge using the cutlist
 /// information in header and items and stores the cut video in out_path.
-fn cut_with_mkvmerge(
-    in_path: &Path,
-    out_path: &Path,
+fn cut_with_mkvmerge<P, Q>(
+    in_path: P,
+    out_path: Q,
     header: &CutlistHeader,
     items: &[CutlistItem],
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
     // assemble split parameter for mkvmerge
     let mut split_str = "".to_string();
     match header.kind {
@@ -383,10 +389,10 @@ fn cut_with_mkvmerge(
     // call mkvmerge to cut the video
     let output = Command::new("mkvmerge")
         .arg("-o")
-        .arg(out_path.to_str().unwrap())
+        .arg(out_path.as_ref().to_str().unwrap())
         .arg("--split")
         .arg(split_str)
-        .arg(in_path.to_str().unwrap())
+        .arg(in_path.as_ref().to_str().unwrap())
         .output()?;
     if !output.status.success() {
         return Err(anyhow!(str::from_utf8(&output.stdout).unwrap().to_string())

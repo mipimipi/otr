@@ -8,9 +8,11 @@ use md5::{Digest, Md5};
 use std::{
     clone::Clone,
     collections::HashMap,
+    fmt::Debug,
     fs::remove_file,
     fs::File,
     io::prelude::*,
+    marker::Copy,
     path::Path,
     str,
     sync::mpsc::{channel, Receiver},
@@ -51,7 +53,11 @@ type Chunk = Vec<u8>;
 
 /// Decode a encoded video file. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-pub fn decode(in_path: &Path, out_path: &Path) -> anyhow::Result<()> {
+pub fn decode<P, Q>(in_path: P, out_path: Q) -> anyhow::Result<()>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path> + Debug + Copy,
+{
     // MAX_CHUNK_SIZE must be a multiple of BLOCK_SIZE
     if MAX_CHUNK_SIZE % BLOCK_SIZE != 0 {
         return Err(anyhow!(
@@ -113,7 +119,7 @@ pub fn decode(in_path: &Path, out_path: &Path) -> anyhow::Result<()> {
     remove_file(&in_path).with_context(|| {
         format!(
             "Could not remove {:?} after successful decoding",
-            in_path.file_name().unwrap().to_str().unwrap()
+            in_path.as_ref().file_name().unwrap().to_str().unwrap()
         )
     })?;
 
@@ -177,14 +183,17 @@ fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
 
 /// Decode a video file (in_file) in concurrent threads using key as decoding
 /// key and write the result to out_path
-fn decode_in_parallel(
+fn decode_in_parallel<P>(
     in_file: &mut File,
-    out_path: &Path,
+    out_path: P,
     header_params: &OTRParams,
     key: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    P: AsRef<Path> + Debug,
+{
     // output file
-    let mut out_file = File::create(out_path)
+    let mut out_file = File::create(&out_path)
         .with_context(|| format!("Could not create result file {:?}", out_path))?;
 
     // thread handle to be able to wait until all threads are done
