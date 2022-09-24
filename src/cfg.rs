@@ -13,7 +13,7 @@ const SUB_PATH_CUT: &str = "Cut";
 const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
 
 /// Structure to holds the command line arguments
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[clap(
     name = env!("CARGO_PKG_NAME"),
     version = env!("CARGO_PKG_VERSION"),
@@ -87,7 +87,7 @@ impl DirKind {
 
 /// Access data (i.e., user and password) for the services provided by the OTR
 /// website
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct OTRAccessData {
     pub user: String,
     pub password: String,

@@ -1,10 +1,7 @@
 use anyhow::{anyhow, Context};
 use ini::Ini;
 use serde::Deserialize;
-use std::{
-    cmp, error::Error, fmt, fmt::Debug, fmt::Write, path::Path, path::PathBuf, process::Command,
-    str,
-};
+use std::{cmp, error::Error, fmt, fmt::Debug, fmt::Write, path::Path, process::Command, str};
 
 /// URI's for the retrieval of cutlist data
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
@@ -46,7 +43,7 @@ impl From<anyhow::Error> for CutError {
 
 /// Cut a decoded video file. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-pub fn cut(in_path: PathBuf, out_path: PathBuf) -> Result<(), CutError> {
+pub fn cut(in_path: &Path, out_path: &Path) -> Result<(), CutError> {
     let file_name = in_path.file_name().unwrap().to_str().unwrap();
 
     // retrieve cutlist headers
@@ -63,7 +60,7 @@ pub fn cut(in_path: PathBuf, out_path: PathBuf) -> Result<(), CutError> {
         match cutlist(&header) {
             Ok(items) => {
                 // cut video with mkvmerge
-                match cut_with_mkvmerge(&in_path, &out_path, &header, &items) {
+                match cut_with_mkvmerge(in_path, out_path, &header, &items) {
                     Ok(_) => {
                         // exit loop since video is cut
                         is_cut = true;
@@ -380,7 +377,7 @@ fn cut_with_mkvmerge(
         if i > 0 {
             split_str += ",+"
         }
-        write!(split_str, "{}-{}", &item.start, &item.end).unwrap();
+        write!(split_str, "{}-{}", &item.start, &item.end)?;
     }
 
     // call mkvmerge to cut the video
@@ -390,8 +387,7 @@ fn cut_with_mkvmerge(
         .arg("--split")
         .arg(split_str)
         .arg(in_path.to_str().unwrap())
-        .output()
-        .unwrap();
+        .output()?;
     if !output.status.success() {
         return Err(anyhow!(str::from_utf8(&output.stdout).unwrap().to_string())
             .context("mkvmerge returned an error"));

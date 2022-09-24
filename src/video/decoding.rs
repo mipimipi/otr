@@ -11,7 +11,7 @@ use std::{
     fs::remove_file,
     fs::File,
     io::prelude::*,
-    path::PathBuf,
+    path::Path,
     str,
     sync::mpsc::{channel, Receiver},
     thread,
@@ -51,7 +51,7 @@ type Chunk = Vec<u8>;
 
 /// Decode a encoded video file. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-pub fn decode(in_path: PathBuf, out_path: PathBuf) -> anyhow::Result<()> {
+pub fn decode(in_path: &Path, out_path: &Path) -> anyhow::Result<()> {
     // MAX_CHUNK_SIZE must be a multiple of BLOCK_SIZE
     if MAX_CHUNK_SIZE % BLOCK_SIZE != 0 {
         return Err(anyhow!(
@@ -96,7 +96,7 @@ pub fn decode(in_path: PathBuf, out_path: PathBuf) -> anyhow::Result<()> {
     // decode encoded video file in concurrent threads using the decoding key
     if let Err(err) = decode_in_parallel(
         &mut in_file,
-        &out_path,
+        out_path,
         &header_params,
         decoding_params.get(PARAM_DECODING_KEY).unwrap(),
     ) {
@@ -179,7 +179,7 @@ fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
 /// key and write the result to out_path
 fn decode_in_parallel(
     in_file: &mut File,
-    out_path: &PathBuf,
+    out_path: &Path,
     header_params: &OTRParams,
     key: &str,
 ) -> anyhow::Result<()> {

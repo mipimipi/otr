@@ -60,7 +60,7 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
     for file in
         fs::read_dir(dir).with_context(|| format!("Could not read '{:?}' directory", &dir_kind))?
     {
-        if !file.as_ref().unwrap().file_type().unwrap().is_file() {
+        if !file.as_ref().unwrap().file_type()?.is_file() {
             continue;
         }
 

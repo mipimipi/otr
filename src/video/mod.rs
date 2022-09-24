@@ -78,11 +78,10 @@ impl Status {
 }
 
 /// Video file downloaded from OTR, incl. its path, key and status
-#[derive(Clone, Debug)]
 pub struct Video {
-    p: PathBuf, // path
-    k: Key,     // key
-    s: Status,  // status
+    p: PathBuf,
+    k: Key,
+    s: Status,
 }
 
 /// Support conversion of a &PathBuf into a Video. Usage of From trait is not
@@ -196,19 +195,6 @@ impl Video {
         self.status() == Status::Cut
     }
 
-    // Changes the videos to the next status (i.e., if its in status encoded,
-    // it is set to decoded, and if it is in status decoded it will be set to
-    // cut). The video path is changed accordingly.
-    pub fn change_to_next_status(&mut self) -> anyhow::Result<()> {
-        if let Some(next_status) = self.s.next() {
-            // NOTE: The new status must not we set before next_path() is
-            //       executed first since next_path() uses the status !!!
-            self.p = self.next_path()?;
-            self.s = next_status;
-        }
-        Ok(())
-    }
-
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly.
     pub fn cut(&mut self) -> anyhow::Result<()> {
@@ -219,10 +205,8 @@ impl Video {
 
         println!("Cutting {:?} ...", self.file_name());
 
-        let out_path = self.next_path()?;
-
         // execute cutting of video
-        if let Err(err) = cutting::cut(self.p.to_path_buf(), out_path) {
+        if let Err(err) = cutting::cut(&self.p, (self.next_path()?).as_path()) {
             match err {
                 cutting::CutError::Any(err) => {
                     let err = err.context(format!("Could not cut {:?}", self.file_name()));
@@ -272,7 +256,7 @@ impl Video {
         println!("Decoding {:?} ...", self.file_name());
 
         // execute decoding
-        decoding::decode(self.p.to_path_buf(), self.next_path()?)?;
+        decoding::decode(&self.p, (self.next_path()?).as_path())?;
 
         println!("Decoded {:?}", self.file_name());
 
@@ -309,6 +293,19 @@ impl Video {
                 )),
             _ => Ok(self.p.to_path_buf()),
         }
+    }
+
+    // Changes the videos to the next status (i.e., if its in status encoded,
+    // it is set to decoded, and if it is in status decoded it will be set to
+    // cut). The video path is changed accordingly.
+    fn change_to_next_status(&mut self) -> anyhow::Result<()> {
+        if let Some(next_status) = self.s.next() {
+            // NOTE: The new status must not we set before next_path() is
+            //       executed first since next_path() uses the status !!!
+            self.p = self.next_path()?;
+            self.s = next_status;
+        }
+        Ok(())
     }
 
     /// Moves a video file to the working sub directory corresponding to the status
