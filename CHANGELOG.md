@@ -6,7 +6,7 @@
 
 * refactoring: made the code "rustier"
 
-## [Release 0.3.0(https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-013
+## [Release 0.3.0(https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-13
 
 ### Changed
 
