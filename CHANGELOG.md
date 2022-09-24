@@ -1,5 +1,11 @@
 # Changelog
 
+## [Release 0.4.0(https://gitlab.com/mipimipi/otr/tags/v0.4.0) (2022-09-24
+
+### Changed
+
+* refactoring: made the code "rustier"
+
 ## [Release 0.3.0(https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-013
 
 ### Changed
