@@ -60,20 +60,19 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
     for file in
         fs::read_dir(dir).with_context(|| format!("Could not read '{:?}' directory", &dir_kind))?
     {
-        if !file.as_ref().unwrap().file_type()?.is_file() {
+        let file_ref = file.as_ref().unwrap();
+
+        if !file_ref.file_type()?.is_file() {
             continue;
         }
 
-        match Video::try_from(&file.as_ref().unwrap().path()) {
+        match Video::try_from(&file_ref.path()) {
             Ok(mut video) => {
                 (&mut video).move_to_working_dir()?;
                 videos.push(video);
             }
             Err(_) => {
-                println!(
-                    "{:?} is not a valid video file: Ignored",
-                    &file.as_ref().unwrap().path()
-                );
+                println!("{:?} is not a valid video file: Ignored", &file_ref.path());
                 continue;
             }
         }
