@@ -1,7 +1,4 @@
-use super::{
-    super::{cfg, cfg::DirKind},
-    Video,
-};
+use super::{cfg, cfg::DirKind, Video};
 use anyhow::{anyhow, Context};
 use std::fs;
 

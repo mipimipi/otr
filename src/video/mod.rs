@@ -1,14 +1,15 @@
-use super::{cfg, cfg::DirKind};
+mod cfg;
+mod collecting;
+mod cutting;
+mod decoding;
+
 use anyhow::anyhow;
+use cfg::DirKind;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use std::{cmp, fmt, fs, path::Path, path::PathBuf};
 
 pub use collecting::collect;
-
-mod collecting;
-mod cutting;
-mod decoding;
 
 /// Key of an OTR video. That's the left part of the file name ending with
 /// "_TVOON_DE". I.e., key of

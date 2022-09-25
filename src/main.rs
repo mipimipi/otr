@@ -1,9 +1,8 @@
+mod video;
+
 use itertools::Itertools;
 use rayon::prelude::*;
 use video::Video;
-
-mod cfg;
-mod video;
 
 /// Process videos (i.e., collect, move, decode and cut them)
 fn process_videos() -> anyhow::Result<()> {
