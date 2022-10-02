@@ -14,35 +14,34 @@ const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
 
 /// Structure to holds the command line arguments
 #[derive(Parser)]
-#[clap(
+#[command(
     name = env!("CARGO_PKG_NAME"),
     version = env!("CARGO_PKG_VERSION"),
     author = env!("CARGO_PKG_AUTHORS"),
     about = env!("CARGO_PKG_DESCRIPTION")
 )]
 struct Args {
-    #[clap(short = 'c', value_parser)]
-    #[clap(
+    #[arg(
         short = 'c',
         long = "config",
         help = "Path of config file (default is ~/.config/otr.json)",
         value_parser
     )]
     cfg_file_path: Option<PathBuf>,
-    #[clap(
+    #[arg(
         short = 'd',
         long = "directory",
         help = "Working directory (overwrites config file content)",
         value_parser
     )]
     working_dir: Option<PathBuf>,
-    #[clap(
+    #[arg(
         short = 'u',
         long = "user",
         help = "User name for Online TV Recorder (overwrites config file content)"
     )]
     user: Option<String>,
-    #[clap(
+    #[arg(
         short = 'p',
         long = "password",
         help = "Password for Online TV Recorder (overwrites config file content)"

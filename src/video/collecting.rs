@@ -12,7 +12,7 @@ pub fn collect() -> anyhow::Result<Vec<Video>> {
     // collect videos from command line parameters
     for path in cfg::videos() {
         if let Ok(mut video) = Video::try_from(path) {
-            (&mut video).move_to_working_dir()?;
+            video.move_to_working_dir()?;
             videos.push(video);
             continue;
         }
@@ -65,7 +65,7 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
 
         match Video::try_from(&file_ref.path()) {
             Ok(mut video) => {
-                (&mut video).move_to_working_dir()?;
+                video.move_to_working_dir()?;
                 videos.push(video);
             }
             Err(_) => {
