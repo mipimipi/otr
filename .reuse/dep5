@@ -12,6 +12,7 @@ Files: .gitignore
        Cargo.toml
        Makefile
        README.md
+       CHANGELOG.md
        pkg/*
        resources/*
        src/*
