@@ -809,6 +809,7 @@ dependencies = [
  "dirs",
  "hex",
  "itertools",
+ "lazy_static",
  "md-5",
  "once_cell",
  "quick-xml",

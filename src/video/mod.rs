@@ -5,7 +5,7 @@ mod decoding;
 
 use anyhow::anyhow;
 use cfg::DirKind;
-use once_cell::sync::OnceCell;
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::{cmp, fmt, fs, path::Path, path::PathBuf};
 
@@ -92,15 +92,26 @@ impl TryFrom<&PathBuf> for Video {
     type Error = anyhow::Error;
 
     fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
+        // Regular vexpressions to analyze video file names
+        lazy_static! {
+            // Analyze the name of a (potential) video file that is not cut -
+            // i.e., either encoded or decoded.
+            static ref RE_UNCUT_VIDEO: Regex =
+                Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.[^\.]+(?P<fmt>\.(HQ|HD))?(?P<ext>\.[^\.]+)(?P<encext>\.otrkey)?$").unwrap();
+            // Analyze the name of a (potential) video file that is cut
+            static ref RE_CUT_VIDEO: Regex =
+                Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.(.*cut\..+)$").unwrap();
+        }
+
         if let Some(file_name) = path.file_name() {
             if let Some(file_name_str) = file_name.to_str() {
                 // check if path represents a cut video file (the check for cut
                 // video files must be done before the check for uncut video
                 // file since cut video files in some cases also match the
                 // regex for uncut files)
-                if regex_cut_video().is_match(file_name_str) {
+                if RE_CUT_VIDEO.is_match(file_name_str) {
                     // assemble Video instance
-                    let captures = regex_cut_video().captures(file_name_str).unwrap();
+                    let captures = RE_CUT_VIDEO.captures(file_name_str).unwrap();
                     let appendix = captures
                         .get(2)
                         .unwrap()
@@ -118,9 +129,9 @@ impl TryFrom<&PathBuf> for Video {
                     });
                 }
                 // check if path represents an encoded or decoded video file
-                if regex_uncut_video().is_match(file_name_str) {
+                if RE_UNCUT_VIDEO.is_match(file_name_str) {
                     // assemble Video instance
-                    let captures = regex_uncut_video().captures(file_name_str).unwrap();
+                    let captures = RE_UNCUT_VIDEO.captures(file_name_str).unwrap();
                     return Ok(Video {
                         p: path.to_path_buf(),
                         k: Key::from(
@@ -337,23 +348,4 @@ impl Video {
 
         Ok(())
     }
-}
-
-/// Regular expression to analyze the name of a (potential) video file that is
-/// not cut - i.e., either encoded or decoded.
-fn regex_uncut_video() -> &'static Regex {
-    static RE_VALID_VIDEO: OnceCell<Regex> = OnceCell::new();
-    RE_VALID_VIDEO.get_or_init(|| {
-        Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.[^\.]+(?P<fmt>\.(HQ|HD))?(?P<ext>\.[^\.]+)(?P<encext>\.otrkey)?$").unwrap()
-    })
-}
-
-/// Regular expression to analyze the name of a (potential) video file that is
-/// cut
-fn regex_cut_video() -> &'static Regex {
-    static RE_VALID_VIDEO: OnceCell<Regex> = OnceCell::new();
-    RE_VALID_VIDEO.get_or_init(|| {
-        Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.(.*cut\..+)$")
-            .unwrap()
-    })
 }
