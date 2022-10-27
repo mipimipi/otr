@@ -344,7 +344,7 @@ impl Video {
 
         // copy video file to working sub directory and adjust path
         fs::rename(&self.p, &target_path)?;
-        self.p = target_path.to_path_buf();
+        self.p = target_path;
 
         Ok(())
     }

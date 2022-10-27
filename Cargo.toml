@@ -21,7 +21,7 @@ itertools = "0.10"
 lazy_static = "1" 
 md-5 = "0.10"
 once_cell = "1"
-quick-xml = { version = "0.25", features = [ "serialize" ] }
+quick-xml = { version = "0.26", features = [ "serialize" ] }
 rand = "0.8"
 random-string = "1"
 rayon = "1"
