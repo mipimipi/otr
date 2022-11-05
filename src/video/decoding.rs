@@ -106,7 +106,7 @@ where
         &header_params,
         decoding_params.get(PARAM_DECODING_KEY).unwrap(),
     ) {
-        remove_file(&out_path).unwrap_or_else(|_| {
+        remove_file(out_path).unwrap_or_else(|_| {
             panic!(
                 "Could not delete file {:?} after error when decoding video",
                 out_path

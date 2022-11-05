@@ -225,11 +225,7 @@ fn working_dir() -> anyhow::Result<&'static PathBuf> {
         if let Some(dir) = &args().working_dir {
             return Ok(dir.to_path_buf());
         }
-        let cfg = cfg_from_file()?;
-        if let Some(dir) = &cfg.working_dir {
-            return Ok(dir.to_path_buf());
-        }
-        if let Some(dir) = &cfg.working_dir {
+        if let Some(dir) = &cfg_from_file()?.working_dir {
             return Ok(dir.to_path_buf());
         }
         Err(anyhow!("working directory is not configured"))
