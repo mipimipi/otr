@@ -23,7 +23,7 @@ deploy_aur:
         - git config --global user.name "${GITLAB_USER_NAME}"
 
     script:
-        - git clone ssh://${AUR_USER}@${AUR_URL}/otr-git.git build
+        - git clone ssh://${AUR_USER}@${AUR_URL}/${CI_PROJECT_NAME}-git.git build
         - chgrp nobody build
         - chmod g+ws build
         - setfacl -m u::rwx,g::rwx build
