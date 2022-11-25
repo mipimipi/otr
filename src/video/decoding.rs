@@ -250,10 +250,10 @@ where
                 })?;
             }
             Err(_) => {
-                return Err(anyhow!(format!(
+                return Err(anyhow!(
                     "Could not create decoded video file {:?}",
                     out_path
-                )));
+                ));
             }
         }
     }

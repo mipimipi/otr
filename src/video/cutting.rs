@@ -166,7 +166,7 @@ fn cutlist_headers(file_name: &str) -> anyhow::Result<Vec<CutlistHeader>> {
         .with_context(|| format!("Could not parse cutlist header response for {}", file_name))?;
 
     if response.is_empty() {
-        return Err(anyhow!(format!("Did not find cutlist for {:?}", file_name)));
+        return Err(anyhow!("Did not find cutlist for {:?}", file_name));
     }
 
     let mut headers: Vec<CutlistHeader> = vec![];

@@ -51,7 +51,7 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
         .context(format!("Could determine '{:?}' directory", &dir_kind))?;
 
     if !dir.is_dir() {
-        return Err(anyhow!(format!("{:?} is not a directory: Ignored", dir)));
+        return Err(anyhow!("{:?} is not a directory: Ignored", dir));
     }
 
     for file in
