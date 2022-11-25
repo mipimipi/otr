@@ -13,14 +13,14 @@ deploy_aur:
         - pacman -Syu --noconfirm base base-devel git pacman openssh
         # set up ssh for access to web space
         - eval $(ssh-agent -s)
-        - echo "$AUR_SSH_KEY" | tr -d '\r' | ssh-add -
+        - echo "${AUR_SSH_KEY}" | tr -d '\r' | ssh-add -
         - mkdir -p ~/.ssh
         - chmod 700 ~/.ssh
         - ssh-keyscan ${AUR_URL} > ~/.ssh/known_hosts
         - chmod 644 ~/.ssh/known_hosts
         # set git config
-        - git config --global user.email "$GITLAB_USER_EMAIL"
-        - git config --global user.name "$GITLAB_USER_NAME"
+        - git config --global user.email "${GITLAB_USER_EMAIL}"
+        - git config --global user.name "${GITLAB_USER_NAME}"
 
     script:
         - git clone ssh://${AUR_USER}@${AUR_URL}/otr-git.git build
