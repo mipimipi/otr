@@ -225,7 +225,7 @@ impl Video {
         println!("Cutting {:?} ...", self.file_name());
 
         // execute cutting of video
-        if let Err(err) = cutting::cut(&self, &self.next_path()?) {
+        if let Err(err) = cutting::cut(&self, self.next_path()?) {
             match err {
                 cutting::CutError::Any(err) => {
                     let err = err.context(format!("Could not cut {:?}", self.file_name()));

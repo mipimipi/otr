@@ -1,5 +1,6 @@
 use super::cfg;
 use anyhow::{anyhow, Context};
+use base64::{engine::general_purpose, Engine};
 use block_modes::block_padding::NoPadding;
 use block_modes::{BlockMode, Cbc, Ecb};
 use blowfish::BlowfishLE;
@@ -159,7 +160,7 @@ fn chunk_sizes(file_size: usize) -> Vec<usize> {
 
 /// Current date and returns it as numeric string of format "YYYYMMDD"
 fn current_date() -> String {
-    let now = chrono::Local::now().date();
+    let now = chrono::Local::now().date_naive();
     format!("{:04}{:02}{:02}", now.year(), now.month(), now.day())
 }
 
@@ -218,7 +219,7 @@ where
         if in_file
             .read(&mut chunk[..chunk_size])
             .with_context(|| "Could not read chunk")?
-            < chunk_size as usize
+            < chunk_size
         {
             return Err(anyhow!("Chunk is too short"));
         }
@@ -307,8 +308,12 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
     }
 
     // decode response from base64 format
-    let mut response = base64::decode(&response)
+    let mut response = general_purpose::STANDARD
+        .decode(&response)
         .with_context(|| "Could not decode response to decoding key request from base64")?;
+    // TODO: remove
+    // let mut response = base64::decode(&response)
+    //     .with_context(|| "Could not decode response to decoding key request from base64")?;
 
     // check response length
     if response.len() < 2 * BLOCK_SIZE || response.len() % BLOCK_SIZE != 0 {
@@ -387,8 +392,16 @@ fn decoding_params_request(
     code.extend_from_slice(payload_encrypted);
 
     // finally assemble URL
-    let request: String =
-        OTR_URL.to_string() + "?code=" + &base64::encode(code) + "&AA=" + user + "&ZZ=" + now;
+    let request: String = OTR_URL.to_string()
+        + "?code="
+        + &general_purpose::STANDARD.encode(code)
+        + "&AA="
+        + user
+        + "&ZZ="
+        + now;
+    // TODO: remove
+    // let request: String =
+    //     OTR_URL.to_string() + "?code=" + &base64::encode(code) + "&AA=" + user + "&ZZ=" + now;
 
     Ok(request)
 }
