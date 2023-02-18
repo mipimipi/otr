@@ -1,16 +1,36 @@
-# Makefile is only used to create a new release. Usage:
-# 	make RELEASE=vX.Y.Z
+PROG=otr
 
-# use bash
 SHELL=/usr/bin/bash
 
-# (1) adjust version in cargo.toml and PKGBUILD, commit and push changes
-# (2) create an annotated tag with name RELEASE
+# Set project VERSION to last tag name. If no tag exists, set it to v0.0.0
+$(eval TAGS=$(shell git rev-list --tags))
+ifdef TAGS
+	VERSION=$(shell git describe --tags --abbrev=0)
+else
+	VERSION=v0.0.0	
+endif
+
+# Build executable 
 all:
+	cargo build --release
+
+.PHONY: all install lint release
+
+lint:
+	reuse lint
+
+install:
+	@install -Dm755 target/release/$(PROG) $(DESTDIR)/usr/bin/$(PROG)
+
+# Call make release RELEASE=vX.Y.Z
+# (1) Adjust version in Cargo.toml and PKGBUILD to RELEASE, commit and push
+#     changes
+# (2) Create an annotated tag with name RELEASE
+release:
 	@if [ -z $(RELEASE) ]; then \
 		echo "no new release submitted"; \
 		exit 1; \
-	fi	
+	fi
 	@VER_NEW=$(RELEASE); \
 	VER_NEW=$${VER_NEW#v}; \
 	VER_OLD=`sed -n "s/^version *= \"*\(.*\)\"/\1/p" ./Cargo.toml`; \
@@ -19,7 +39,7 @@ all:
 		exit 1; \
 	fi; \
 	sed -i -e "s/^version.*/version = \"$${VER_NEW#v}\"/" ./Cargo.toml; \
-	sed -i -e "s/pkgver=.*/pkgver=$${VER_NEW#v}/" ./pkg/PKGBUILD
+	sed -i -e "s/pkgver=.*/pkgver=$${VER_NEW#v}/" ./pkg/PKGBUILD;
 	@git commit -a -s -m "release $(RELEASE)"
 	@git push
 	@git tag -a $(RELEASE) -m "release $(RELEASE)"
