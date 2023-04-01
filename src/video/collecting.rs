@@ -1,4 +1,5 @@
 use super::{cfg, cfg::DirKind, Video};
+use crate::cli;
 use anyhow::{anyhow, Context};
 use std::fs;
 
@@ -10,7 +11,7 @@ pub fn collect() -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
     // collect videos from command line parameters
-    for path in cfg::videos() {
+    for path in &cli::args().videos() {
         if let Ok(mut video) = Video::try_from(path) {
             video.move_to_working_dir()?;
             videos.push(video);

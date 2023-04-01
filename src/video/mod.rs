@@ -1,5 +1,6 @@
 mod cfg;
 mod collecting;
+mod cutlist;
 mod cutting;
 mod decoding;
 
@@ -7,7 +8,10 @@ use anyhow::anyhow;
 use cfg::DirKind;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{cmp, fmt, fs, path::Path, path::PathBuf};
+use std::{
+    cmp, fmt, fs,
+    path::{Path, PathBuf},
+};
 
 pub use collecting::collect;
 

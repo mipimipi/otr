@@ -1,3 +1,4 @@
+mod cli;
 mod video;
 
 use itertools::Itertools;

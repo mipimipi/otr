@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Context};
-use clap::Parser;
 use once_cell::sync::OnceCell;
 use std::{cmp::Eq, collections::HashMap, fmt, fs, fs::File, io::BufReader, path::PathBuf};
+
+use crate::cli;
 
 const CFG_FILENAME: &str = "otr.json";
 const CFG_DEFAULT_DIR: &str = ".config";
@@ -11,45 +12,6 @@ const SUB_PATH_ENCODED: &str = "Encoded";
 const SUB_PATH_DECODED: &str = "Decoded";
 const SUB_PATH_CUT: &str = "Cut";
 const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
-
-/// Structure to holds the command line arguments
-#[derive(Parser)]
-#[command(
-    name = env!("CARGO_PKG_NAME"),
-    version = env!("CARGO_PKG_VERSION"),
-    author = env!("CARGO_PKG_AUTHORS"),
-    about = env!("CARGO_PKG_DESCRIPTION")
-)]
-struct Args {
-    #[arg(
-        short = 'c',
-        long = "config",
-        help = "Path of config file (default is ~/.config/otr.json)",
-        value_parser
-    )]
-    cfg_file_path: Option<PathBuf>,
-    #[arg(
-        short = 'd',
-        long = "directory",
-        help = "Working directory (overwrites config file content)",
-        value_parser
-    )]
-    working_dir: Option<PathBuf>,
-    #[arg(
-        short = 'u',
-        long = "user",
-        help = "User name for Online TV Recorder (overwrites config file content)"
-    )]
-    user: Option<String>,
-    #[arg(
-        short = 'p',
-        long = "password",
-        help = "Password for Online TV Recorder (overwrites config file content)"
-    )]
-    password: Option<String>,
-    #[clap(value_parser)]
-    videos: Vec<std::path::PathBuf>,
-}
 
 /// Directory types
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -97,38 +59,48 @@ pub struct OTRAccessData {
 /// tried to retrieved from the configuration file. The result is stored in a
 /// static variable. Thus, data is only determined once.
 pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
-    // retrieve OTR user and password
-    let data = OTRAccessData {
-        user: if let Some(user) = &args().user {
-            user.clone()
-        } else {
-            let cfg = cfg_from_file()?;
-            if let Some(user) = &cfg.user {
-                user.clone()
-            } else {
-                return Err(anyhow!("OTR user name is not configured"));
-            }
-        },
-        password: if let Some(password) = &args().password {
-            password.clone()
-        } else {
-            let cfg = cfg_from_file()?;
-            if let Some(password) = &cfg.password {
-                password.clone()
-            } else {
-                return Err(anyhow!("OTR password is not configured"));
-            }
-        },
-    };
-
-    Ok(data)
+    // Check if command requires OTR access data
+    match &cli::args().command {
+        cli::Commands::Process { user, password, .. } => {
+            // Retrieve OTR user and password
+            let data = OTRAccessData {
+                user: if let Some(user) = user {
+                    user.clone()
+                } else {
+                    let cfg = cfg_from_file()?;
+                    if let Some(user) = &cfg.user {
+                        user.clone()
+                    } else {
+                        return Err(anyhow!("OTR user name is not configured"));
+                    }
+                },
+                password: if let Some(password) = password {
+                    password.clone()
+                } else {
+                    let cfg = cfg_from_file()?;
+                    if let Some(password) = &cfg.password {
+                        password.clone()
+                    } else {
+                        return Err(anyhow!("OTR password is not configured"));
+                    }
+                },
+            };
+            Ok(data)
+        }
+        _ => Err(anyhow!("This command does not require OTR access dats")),
+    }
 }
 
 /// Videos (i.e., vector of paths of the video files) whose paths have been
 /// submitted as command line arguments.
-pub fn videos() -> &'static Vec<PathBuf> {
-    &args().videos
+/*
+pub fn videos() -> &'static Path> {
+    match &cli::args().command {
+        cli::Commands::Cut { video, .. } => vec![video],
+        cli::Commands::Process { videos, .. } => videos.to_vec(),
+    }
 }
+*/
 
 /// Working sub directories (i.e., the sub directories for encoded, decoded, cut
 /// etc. videos). The directory paths are determined once only and stored in a
@@ -171,13 +143,6 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
     ))
 }
 
-/// Command line arguments. The conversion / determination into that structure
-/// is done once only. The result is stored in a static variable.
-fn args() -> &'static Args {
-    static ARGS: OnceCell<Args> = OnceCell::new();
-    ARGS.get_or_init(Args::parse)
-}
-
 /// Content of the configuration file
 #[derive(serde::Deserialize, Debug, Default)]
 struct CfgFromFile {
@@ -196,7 +161,7 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
         //   (2) XDG config dir (if that's available)
         //   (3) XDG home dir (if that's available) joined with default
         //       (relative) configuration path
-        let path = if let Some(path) = &args().cfg_file_path {
+        let path = if let Some(path) = &cli::args().cfg_file_path {
             path.to_path_buf()
         } else if let Some(cfg_dir) = dirs::config_dir() {
             cfg_dir.join(CFG_FILENAME)
@@ -222,7 +187,7 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
 fn working_dir() -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {
-        if let Some(dir) = &args().working_dir {
+        if let Some(dir) = &cli::args().working_dir {
             return Ok(dir.to_path_buf());
         }
         if let Some(dir) = &cfg_from_file()?.working_dir {
