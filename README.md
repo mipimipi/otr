@@ -14,7 +14,14 @@ Decoding includes verifying the checksums of the OTRKEY file and the decoded fil
 
 ### Cutting
 
-otr uses [cutlist.at](http://cutlist.at) as cutlist provider and automatically downloads cutlists from there. Based on these, otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html).
+For cutting videos, there are two different options:
+
+1. otr downloads cut lists from the cut list provider [cutlist.at](http://cutlist.at) automatically
+1. Cut intervals can be specified on the command line
+
+	This option can make sense if cutlist.at cannot provide a cut list for a certain video. In this case, the cut intervals could be determined (manually) with a video editor such as [Avidemux](https://avidemux.sourceforge.net/), [OpenShot](https://www.openshot.org/) or [Shotcut](https://www.shotcut.org/) and fed into otr on the command line.
+
+otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html).
 
 ### Fast, concurrent processing
 
@@ -26,7 +33,7 @@ It's possible to create a dedicated mime type for otrkey files. otr can be defin
 
 ### Simple usage
 
-Though being a command line application, the usage of otr is quite simple. If, for example, you have downloaded some OTRKEY files from OTR, the command `otr` processes all files (i.e., they are decoded, cutlists are downloaded and the files are cut). With the dedicated mime type, it's even simpler: A double click on an OTRKEY file starts otr.
+Though being a command line application, the usage of otr is quite simple. If, for example, you have downloaded some OTRKEY files from OTR, the command `otr process` processes all files (i.e., they are decoded, cut lists are downloaded and the files are cut). With the dedicated mime type, it's even simpler: A double click on an OTRKEY file starts otr.
 
 ## Installation
 
@@ -57,9 +64,9 @@ For Arch Linux (and other Linux distros, that can install packages from the Arch
 
 ## Usage
 
-When otr is called, it processes all video files that are submitted as command line parameters and the files stored in the working directory (see below).
+`otr process` processes all video files that are submitted as command line parameters and the files stored in the working directory (see below). `otr cut` allows cutting a single video specifying the cut intervals on command line. See the command line help for details.
 
-otr requires a certain schema for the name of video file (that's the schema OTR uses as well). See schema in pseudo regular expression notation for encoded and decoded files:
+otr requires a certain schema for the name of video files (that's the schema OTR uses as well). See schema in pseudo regular expression notation for encoded and decoded files:
 
     <name-of-video>_YY.MM.DD_hh-mm_<TV-station>_<a-number>_TVOON_DE.mpg(.|.HQ|.HD).<format>(.otrkey)?
 
@@ -88,4 +95,4 @@ otr requires a working directory (`~/Videos/OTR`, for example). In this director
         |    
         |- Cut
 
-There, video files are stored depending on their processing status. I.e., `Cut` contains the video files that have been cut, `Decoded` the decoded files that have not been cut yet (it can happen that a video can be decoded but cannot be cut because cutlists don't exist yet). If videos have been cut, the uncut version is stored under `Decoded/Archive` to allow users to repeat the cutting if they are not happy with the result.
+There, video files are stored depending on their processing status. I.e., `Cut` contains the video files that have been cut, `Decoded` the decoded files that have not been cut yet (it can happen that a video can be decoded but cannot be cut because cut lists don't exist yet). If videos have been cut, the uncut version is stored under `Decoded/Archive` to allow users to repeat the cutting if they are not happy with the result.
