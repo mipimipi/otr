@@ -63,6 +63,13 @@ where
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
     let cutlist = CutList::from_str(intervals.as_ref())?;
 
+    if !cutlist.is_valid() {
+        return Err(CutError::Any(anyhow!(
+            "{} let to an invalid cut list",
+            intervals
+        )));
+    }
+
     match cut_with_mkvmerge(&in_path, &out_path, &cutlist)
         .context(format!("Could not cut {:?} with {}", file_name, intervals))
     {
@@ -80,7 +87,7 @@ where
 
     // retrieve cutlist headers
     let headers: Vec<cutlist::ProviderHeader> = match cutlist::headers_from_provider(file_name)
-        .context(format!("Could not retrieve cutlists for {:?}", file_name))
+        .context(format!("Could not retrieve cut lists for {:?}", file_name))
     {
         Ok(hdrs) => hdrs,
         _ => return Err(CutError::NoCutlist),
@@ -91,6 +98,14 @@ where
     for header in headers {
         match CutList::try_from(&header) {
             Ok(cutlist) => {
+                if !cutlist.is_valid() {
+                    return Err(CutError::Any(anyhow!(
+                        "Cut list {} for {:?} is not valid",
+                        header.id(),
+                        file_name
+                    )));
+                }
+
                 // cut video with mkvmerge
                 match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
                     Ok(_) => {
@@ -102,7 +117,7 @@ where
                         eprintln!(
                             "{:?}",
                             anyhow!(err).context(format!(
-                                "Could not cut {:?} with cutlist {}",
+                                "Could not cut {:?} with cut list {}",
                                 file_name,
                                 header.id()
                             ))
@@ -114,7 +129,7 @@ where
                 eprintln!(
                     "{:?}",
                     anyhow!(err).context(format!(
-                        "Could not retrieve cutlist {} for {:?}",
+                        "Could not retrieve cut list {} for {:?}",
                         header.id(),
                         file_name
                     ))
@@ -125,7 +140,7 @@ where
 
     if !is_cut {
         return Err(CutError::Any(anyhow!(
-            "No cutlist could be successfully applied to cut {:?}",
+            "No cut list could be successfully applied to cut {:?}",
             file_name
         )));
     }

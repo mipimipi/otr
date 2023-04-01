@@ -9,11 +9,11 @@ use std::{
     str::{self, FromStr},
 };
 
-/// URI's for the retrieval of cutlist data
+/// URI's for the retrieval of cut list data from the provider cutlist.at
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
 
-/// Names for sections and attributs of INI file
+/// Names for sections and attributes for the INI file of cutlist.at
 const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
 const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
 const CUTLIST_ITEM_CUT_SECTION: &str = "Cut";
@@ -22,7 +22,8 @@ const CUTLIST_ITEM_TIMES_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
-/// Kind of a cut - i.e., whether it is expressed in frame numbers or times
+/// Type of a cut list - i.e., whether the cut intervals are based on frame
+/// numbers or times
 #[derive(Clone)]
 pub enum Kind {
     Frames,
@@ -40,7 +41,7 @@ impl TryFrom<&str> for Kind {
     }
 }
 
-/// Header of a cutlist
+/// Header data to retrieve cut lists from a provider
 pub struct ProviderHeader {
     id: u64,
     rating: f64,
@@ -74,8 +75,8 @@ impl ProviderHeader {
     }
 }
 
-/// Retrieves the headers of potentially existing cutlists for a video. If no
-/// cutlist exists, an empty array but no error is returned.
+/// Retrieves the headers of cut lists for a video from a provider. If no cut
+/// list exists, an empty array but no error is returned.
 pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHeader>> {
     #[derive(Debug, Deserialize)]
     struct RawHeaders {
@@ -94,12 +95,12 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
     let response = reqwest::blocking::get(CUTLIST_RETRIEVE_HEADERS_URI.to_string() + file_name)
         .with_context(|| {
             format!(
-                "Did not get a response for cutlist header request for {}",
+                "Did not get a response for cut list header request for {}",
                 file_name
             )
         })?
         .text()
-        .with_context(|| format!("Could not parse cutlist header response for {}", file_name))?;
+        .with_context(|| format!("Could not parse cut list header response for {}", file_name))?;
 
     if response.is_empty() {
         return Err(anyhow!("Did not find cutlist for {:?}", file_name));
@@ -342,6 +343,23 @@ impl TryFrom<&ProviderHeader> for CutList {
 }
 
 impl CutList {
+    pub fn is_valid(&self) -> bool {
+        let last_item: Option<&Item> = None;
+
+        for item in &self.items {
+            if item.start > item.end {
+                return false;
+            }
+            if let Some(last_item) = last_item {
+                if last_item.end > item.start {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     pub fn to_mkvmerge_split_str(&self) -> String {
         let mut split_str = match self.kind {
             Kind::Frames => "parts-frames:",
