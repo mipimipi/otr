@@ -19,7 +19,7 @@ Name=otr
 Comment=otr - Decode and cut video files from Online TV Recorder
 
 # The executable of the application, possibly with arguments.
-Exec=/usr/bin/otr
+Exec=/usr/bin/otr process
 
 # Describes whether this application needs to be run in a terminal or not
 Terminal=true
