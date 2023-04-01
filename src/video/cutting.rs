@@ -27,7 +27,7 @@ impl fmt::Display for CutError {
         }
     }
 }
-/// Support conversion an Error into a CutError
+/// Support conversion of an anyhow::Error into a CutError
 impl Error for CutError {}
 /// Support conversion of an anyhow::Error into CutError
 impl From<anyhow::Error> for CutError {
@@ -43,6 +43,9 @@ where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
+    // Call specialized cut functions: Either cut with a cut list derived from
+    // the --intervals command line option or retrieve cut lists from a
+    // provider
     if let cli::Commands::Cut {
         intervals: Some(intervals),
         ..
@@ -54,6 +57,9 @@ where
     }
 }
 
+/// Cut a video with a cut list derived from the --intervals command line
+/// option. in_path is the path of the decoded video file.
+/// out_path is the path of the cut video file.
 fn cut_with_cli_cutlist<P, Q, S>(in_path: P, out_path: Q, intervals: S) -> Result<(), CutError>
 where
     P: AsRef<Path>,
@@ -78,6 +84,8 @@ where
     }
 }
 
+/// Cut a video with a cut list retrieved from a provider. in_path is the path
+/// of the decoded video file. out_path is the path of the cut video file.
 fn cut_with_provider_cutlist<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
 where
     P: AsRef<Path>,
@@ -85,7 +93,7 @@ where
 {
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
 
-    // retrieve cutlist headers
+    // Retrieve cut list headers from provider
     let headers: Vec<cutlist::ProviderHeader> = match cutlist::headers_from_provider(file_name)
         .context(format!("Could not retrieve cut lists for {:?}", file_name))
     {
@@ -93,7 +101,7 @@ where
         _ => return Err(CutError::NoCutlist),
     };
 
-    // retrieve cutlists and cut video
+    // Retrieve cut lists from provider and cut video
     let mut is_cut = false;
     for header in headers {
         match CutList::try_from(&header) {
@@ -106,10 +114,8 @@ where
                     )));
                 }
 
-                // cut video with mkvmerge
                 match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
                     Ok(_) => {
-                        // exit loop since video is cut
                         is_cut = true;
                         break;
                     }
@@ -148,14 +154,14 @@ where
     Ok(())
 }
 
-/// Cut a video file stored in in_path with mkvmerge using the cutlist
-/// information in header and items and stores the cut video in out_path.
+/// Cut a video file stored in in_path with mkvmerge using the given cut list
+/// and store the cut video in out_path.
 fn cut_with_mkvmerge<P, Q>(in_path: P, out_path: Q, cutlist: &CutList) -> anyhow::Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    // call mkvmerge to cut the video
+    // Call mkvmerge to cut the video
     let output = Command::new("mkvmerge")
         .arg("-o")
         .arg(out_path.as_ref().to_str().unwrap())

@@ -36,7 +36,7 @@ pub enum Commands {
         name = "cut",
         about = "Cut a video",
         long_about = indoc! {"
-            Cut a video if possible (i.e., if either cutlists exist or cut intervals
+            Cut a video if possible (i.e., if either cut lists exist or cut intervals
             where submitted). The video files (the uncut and cut video files) are
             moved to the corresponding working (sub)directories
         "}
@@ -96,8 +96,11 @@ pub fn args() -> &'static Args {
 }
 
 impl Args {
-    // TODO: avoid copying values
+    /// Returns videos (file paths) as array for different sub commands. This is
+    /// independent from number of videos a sub command required (i.e., only one
+    /// or many)
     pub fn videos(&self) -> Vec<PathBuf> {
+        // TODO: avoid copying values
         match &self.command {
             Commands::Cut { video, .. } => vec![video.to_path_buf()],
             Commands::Process { videos, .. } => videos.to_vec(),
