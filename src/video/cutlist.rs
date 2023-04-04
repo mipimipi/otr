@@ -17,17 +17,17 @@ const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?i
 const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
 const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
 const CUTLIST_ITEM_CUT_SECTION: &str = "Cut";
-const CUTLIST_ITEM_TIMES_START: &str = "Start";
-const CUTLIST_ITEM_TIMES_DURATION: &str = "Duration";
+const CUTLIST_ITEM_TIME_START: &str = "Start";
+const CUTLIST_ITEM_TIME_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
 /// Type of a cut list - i.e., whether the cut intervals are based on frame
-/// numbers or times
+/// numbers or time
 #[derive(Clone)]
 pub enum Kind {
     Frames,
-    Times,
+    Time,
 }
 impl TryFrom<&str> for Kind {
     type Error = anyhow::Error;
@@ -35,7 +35,7 @@ impl TryFrom<&str> for Kind {
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
             "frames" => Ok(Kind::Frames),
-            "times" => Ok(Kind::Times),
+            "time" => Ok(Kind::Time),
             _ => Err(anyhow!("'{}' is not a valid kind of a cut list", s)),
         }
     }
@@ -135,7 +135,7 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
             header.kind = if with_frames == 1 {
                 Kind::Frames
             } else {
-                Kind::Times
+                Kind::Time
             };
         }
 
@@ -181,7 +181,7 @@ impl Item {
 fn item_attr_start(kind: &Kind) -> String {
     match kind {
         Kind::Frames => CUTLIST_ITEM_FRAMES_START.to_string(),
-        _ => CUTLIST_ITEM_TIMES_START.to_string(),
+        _ => CUTLIST_ITEM_TIME_START.to_string(),
     }
 }
 
@@ -190,13 +190,13 @@ fn item_attr_start(kind: &Kind) -> String {
 fn item_attr_duration(kind: &Kind) -> String {
     match kind {
         Kind::Frames => CUTLIST_ITEM_FRAMES_DURATION.to_string(),
-        _ => CUTLIST_ITEM_TIMES_DURATION.to_string(),
+        _ => CUTLIST_ITEM_TIME_DURATION.to_string(),
     }
 }
 
 lazy_static! {
     /// Reg exp for the internals string that can be specified on command line
-    static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|times):((\[[^,]+,[^,]+\])+)$"#).unwrap();
+    static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|time):((\[[^,]+,[^,]+\])+)$"#).unwrap();
 }
 
 /// Cut list, consisting of a kind/type and a list of cut intervals (items)
@@ -372,7 +372,7 @@ impl CutList {
     pub fn to_mkvmerge_split_str(&self) -> String {
         let mut split_str = match self.kind {
             Kind::Frames => "parts-frames:",
-            Kind::Times => "parts:",
+            Kind::Time => "parts:",
         }
         .to_string();
 
@@ -394,7 +394,7 @@ impl CutList {
 }
 
 lazy_static! {
-    /// Reg exp for the interval start/end of a cut list of kind "times"
+    /// Reg exp for the interval start/end of a cut list of kind "time"
     static ref RE_TIME: Regex =
         Regex::new(r#"^(\d+):([0-5]\d)+:([0-5]\d)+(\.(\d{0,6}))*$"#).unwrap();
 }
@@ -409,7 +409,7 @@ fn cut_str_to_f64(kind: &Kind, cut_str: &str) -> anyhow::Result<f64> {
                 cut_str
             )
         }),
-        Kind::Times => {
+        Kind::Time => {
             if !RE_TIME.is_match(cut_str) {
                 return Err(anyhow!("'{}' is not a valid time cut string", cut_str));
             }
@@ -461,13 +461,13 @@ fn f64_to_cut_str(kind: &Kind, point: f64) -> String {
     match kind {
         Kind::Frames => write!(cut_str, "{:.0}", point)
             .expect("Cannot convert a point of a cut list of type frames to mkvmerge to string"),
-        Kind::Times => {
+        Kind::Time => {
             let time: u64 = (point * 1000000_f64) as u64;
             let (secs, subs) = (time / 1000000, time % 1000000);
             let (hours, rest) = (secs / 3600, secs % 3600);
             let (mins, rest) = (rest / 60, rest % 60);
             write!(cut_str, "{:02}:{:02}:{:02}.{:06}", hours, mins, rest, subs)
-                .expect("Cannot convert a point of a cut list of type times to mkvmerge to string");
+                .expect("Cannot convert a point of a cut list of type time to mkvmerge to string");
         }
     };
 

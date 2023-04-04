@@ -46,14 +46,13 @@ pub enum Commands {
             long = "intervals",
             value_name = "INTERVALS_STRING",
             help = indoc! {"
-            Cut intervals, either as times or frames. The INTERVALS_STRING starts either
-            with the key word \"frames\" or \"times\" depending on whether the video
-            should be cut based on frame numbers or times. After a colon, the list of
-            intervals must be specified as \"[<START>,<END>]...\". Times must be given as
-            H:MM:SS.ssssss, where \"ssssss\" denotes the sub seconds part as nano seconds.
-            This part is optional.
+            Cut intervals, either based on as time or frames numbers. The INTERVALS_STRING
+            starts either with the key word \"frames\" or \"time\" respectively. After a
+            colon, the list of intervals must be specified as \"[<START>,<END>]...\".
+            Times must be given as [H...]H:MM:SS.ssssss, where \"ssssss\" denotes the sub
+            seconds part as nano seconds. This part is optional.
             Examples:
-                \"times:[0:05:30,0:20:59.45]\"
+                \"time:[0:05:30,0:20:59.45]\"
                 \"frames:[123,45667][48345,679868]\""}
         )]
         intervals: Option<String>,
