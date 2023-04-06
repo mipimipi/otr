@@ -1,6 +1,6 @@
 use crate::{
     cli,
-    video::cutlist::{self, CutList},
+    video::cutlist::{self, CutList, Kind},
 };
 use anyhow::{anyhow, Context};
 use std::{
@@ -13,9 +13,11 @@ use std::{
 
 /// Special error type for cutting videos to be able to handle specific
 /// situations - e.g., if no cutlist exists
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum CutError {
     Any(anyhow::Error),
+    #[default]
+    Default,
     NoCutlist,
 }
 /// Support the use of "{}" format specifier
@@ -23,6 +25,7 @@ impl fmt::Display for CutError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             CutError::Any(ref source) => write!(f, "Error: {}", source),
+            CutError::Default => write!(f, "Default cut error"),
             CutError::NoCutlist => write!(f, "No cutlist exists"),
         }
     }
@@ -69,12 +72,9 @@ where
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
     let cutlist = CutList::from_str(intervals.as_ref())?;
 
-    if !cutlist.is_valid() {
-        return Err(CutError::Any(anyhow!(
-            "{} let to an invalid cut list",
-            intervals
-        )));
-    }
+    cutlist
+        .validate()
+        .context(format!("{} let to an invalid cut list", intervals))?;
 
     match cut_with_mkvmerge(&in_path, &out_path, &cutlist)
         .context(format!("Could not cut {:?} with {}", file_name, intervals))
@@ -106,13 +106,11 @@ where
     for header in headers {
         match CutList::try_from(&header) {
             Ok(cutlist) => {
-                if !cutlist.is_valid() {
-                    return Err(CutError::Any(anyhow!(
-                        "Cut list {} for {:?} is not valid",
-                        header.id(),
-                        file_name
-                    )));
-                }
+                cutlist.validate().context(format!(
+                    "Cut list {} for {:?} is not valid",
+                    header.id(),
+                    file_name
+                ))?;
 
                 match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
                     Ok(_) => {
@@ -154,25 +152,49 @@ where
     Ok(())
 }
 
-/// Cut a video file stored in in_path with mkvmerge using the given cut list
-/// and store the cut video in out_path.
+/// Cut a video file stored in in_path with mkvmerge using the given cut list.
+/// The cut video is stored in out_path.
 fn cut_with_mkvmerge<P, Q>(in_path: P, out_path: Q, cutlist: &CutList) -> anyhow::Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    // Call mkvmerge to cut the video
-    let output = Command::new("mkvmerge")
-        .arg("-o")
-        .arg(out_path.as_ref().to_str().unwrap())
-        .arg("--split")
-        .arg(cutlist.to_mkvmerge_split_str())
-        .arg(in_path.as_ref().to_str().unwrap())
-        .output()?;
-    if !output.status.success() {
-        return Err(anyhow!(str::from_utf8(&output.stdout).unwrap().to_string())
-            .context("mkvmerge returned an error"));
+    fn exec_mkvmerge<P, Q>(
+        in_path: P,
+        out_path: Q,
+        kind: &Kind,
+        cutlist: &CutList,
+    ) -> anyhow::Result<()>
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
+    {
+        // Call mkvmerge to cut the video
+        let output = Command::new("mkvmerge")
+            .arg("-o")
+            .arg(out_path.as_ref().to_str().unwrap())
+            .arg("--split")
+            .arg(cutlist.to_mkvmerge_split_str(kind)?)
+            .arg(in_path.as_ref().to_str().unwrap())
+            .output()?;
+        if !output.status.success() {
+            return Err(anyhow!(str::from_utf8(&output.stdout).unwrap().to_string()));
+        }
+        Ok(())
     }
 
-    Ok(())
+    // Try all available kinds (frame numbers, time). After the cutting was
+    // successful for one of them, exit
+    let mut err = anyhow::Error::new(CutError::Default);
+    for kind in cutlist.kinds() {
+        if let Err(mkvmerge_err) =
+            exec_mkvmerge(in_path.as_ref(), out_path.as_ref(), &kind, cutlist)
+        {
+            err = mkvmerge_err;
+        } else {
+            return Ok(());
+        }
+    }
+
+    Err(err.context("mkvmerge returned an error"))
 }

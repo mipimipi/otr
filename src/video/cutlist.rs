@@ -4,8 +4,10 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use std::{
-    cmp,
-    fmt::{Debug, Write},
+    cmp::{self, Eq, PartialEq},
+    collections::HashMap,
+    fmt::{self, Debug, Display, Write},
+    hash::Hash,
     str::{self, FromStr},
 };
 
@@ -22,10 +24,11 @@ const CUTLIST_ITEM_TIME_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
-/// Type of a cut list - i.e., whether the cut intervals are based on frame
-/// numbers or time
-#[derive(Clone)]
+/// Type of cut list intervals - i.e., whether they are based on frame numbers or
+/// time
+#[derive(Clone, Default, Eq, Hash, PartialEq)]
 pub enum Kind {
+    #[default]
     Frames,
     Time,
 }
@@ -40,12 +43,24 @@ impl TryFrom<&str> for Kind {
         }
     }
 }
+impl Display for Kind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Kind::Frames => "frames",
+                Kind::Time => "time",
+            }
+        )
+    }
+}
 
 /// Header data to retrieve cut lists from a provider
+#[derive(Default)]
 pub struct ProviderHeader {
     id: u64,
     rating: f64,
-    kind: Kind,
 }
 impl Eq for ProviderHeader {}
 impl Ord for ProviderHeader {
@@ -87,8 +102,6 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
     struct RawHeader {
         id: u64,
         rating: String,
-        #[serde(rename = "withframes")]
-        with_frames: String,
         errors: String,
     }
 
@@ -121,22 +134,12 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
         // Create default cutlist header
         let mut header = ProviderHeader {
             id: raw_header.id,
-            rating: 0.0,
-            kind: Kind::Frames,
+            ..Default::default()
         };
 
         // Parse rating
         if let Ok(rating) = raw_header.rating.parse::<f64>() {
             header.rating = rating;
-        }
-
-        // Parse frames indicator
-        if let Ok(with_frames) = raw_header.with_frames.parse::<i32>() {
-            header.kind = if with_frames == 1 {
-                Kind::Frames
-            } else {
-                Kind::Time
-            };
         }
 
         headers.push(header);
@@ -147,13 +150,13 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
 }
 
 /// Cut/interval of a cutlist - i.e., a start and an end point
-/// #[derive(Debug)]
 pub struct Item {
     pub start: f64,
     pub end: f64,
 }
 impl Item {
-    // Create a new cut ist item from a start point and a duration
+    // Create a new cut list item from a start point and a duration. If the new
+    // item would have a duration of zero, None is returned.
     fn new(start: &str, duration: &str) -> anyhow::Result<Option<Item>> {
         // convert start and duration to floating point
         let start_f = start
@@ -174,10 +177,33 @@ impl Item {
             Ok(None)
         }
     }
+
+    // Create a cut list item from a cut/interval from an ini structure
+    fn from_ini(cutlist_ini: &Ini, cut_no: i32, kind: &Kind) -> anyhow::Result<Option<Item>> {
+        let cut = cutlist_ini
+            .section(Some(format!("{}{}", CUTLIST_ITEM_CUT_SECTION, cut_no)))
+            .with_context(|| format!("Could not find section for cut no {}", cut_no))?;
+        Item::new(
+            cut.get(item_attr_start(kind)).with_context(|| {
+                format!(
+                    "Could not find attribute '{}' for cut no {}",
+                    item_attr_start(kind),
+                    cut_no
+                )
+            })?,
+            cut.get(item_attr_duration(kind)).with_context(|| {
+                format!(
+                    "Could not find attribute '{}' for cut no {}",
+                    item_attr_duration(kind),
+                    cut_no
+                )
+            })?,
+        )
+    }
 }
 
-/// Attribute name for start of a cut interval depending on the kind of the cut
-/// list
+/// Attribute name for start of a cut interval depending on the kind, i.e. frame
+/// numbers or time
 fn item_attr_start(kind: &Kind) -> String {
     match kind {
         Kind::Frames => CUTLIST_ITEM_FRAMES_START.to_string(),
@@ -185,8 +211,8 @@ fn item_attr_start(kind: &Kind) -> String {
     }
 }
 
-/// Attribute name for the duration of a cut interval depending on the kind of
-// the cut list
+/// Attribute name for the duration of a cut interval depending on the kind, i.e. frame
+/// numbers or time
 fn item_attr_duration(kind: &Kind) -> String {
     match kind {
         Kind::Frames => CUTLIST_ITEM_FRAMES_DURATION.to_string(),
@@ -195,21 +221,21 @@ fn item_attr_duration(kind: &Kind) -> String {
 }
 
 lazy_static! {
-    /// Reg exp for the internals string that can be specified on command line
+    /// Reg exp for the intervals string that can be specified on command line
     static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|time):((\[[^,]+,[^,]+\])+)$"#).unwrap();
 }
 
-/// Cut list, consisting of a kind/type and a list of cut intervals (items)
+/// Cut list, consisting of intervals of frame numbers and/or times. At least one
+/// of both must be there
+#[derive(Default)]
 pub struct CutList {
-    kind: Kind,
-    pub items: Vec<Item>,
+    items: HashMap<Kind, Vec<Item>>,
 }
-
 impl FromStr for CutList {
     type Err = anyhow::Error;
 
     /// Creates a cut list from an intervals string that was specified on command
-    /// line
+    /// line, i.e. "frames:[...]" or "[time:[...]"
     fn from_str(intervals: &str) -> Result<Self, Self::Err> {
         if !RE_INTERVALS.is_match(intervals) {
             return Err(anyhow!("'{}' is not a valid intervals string", intervals));
@@ -221,18 +247,19 @@ impl FromStr for CutList {
             .captures(intervals)
             .unwrap_or_else(|| panic!("Cannot split intervals string since it is not valid"));
 
-        let mut list = CutList {
-            kind: Kind::try_from(
-                caps_intervals
-                    .get(1)
-                    .unwrap_or_else(|| {
-                        panic!("Cannot extract intervals type from intervals string")
-                    })
-                    .as_str(),
-            )
-            .expect("Cannot create cutlist kind from intervals string"),
-            items: vec![],
-        };
+        let kind = Kind::try_from(
+            caps_intervals
+                .get(1)
+                .unwrap_or_else(|| panic!("Cannot extract intervals type from intervals string"))
+                .as_str(),
+        )
+        .expect("Cannot create cutlist kind from intervals string");
+
+        // An intervals string can either be based on frame numbers or time, but
+        // not both
+        let mut cutlist: CutList = Default::default();
+        cutlist.items.insert(kind.clone(), vec![]);
+        let items = cutlist.items.get_mut(&kind).unwrap();
 
         // Parse the actual intervals
         for interval in caps_intervals
@@ -254,13 +281,13 @@ impl FromStr for CutList {
                 .unwrap_or_else(|| panic!("Cannot extract right boundary of interval"))
                 .trim();
 
-            list.items.push(Item {
-                start: cut_str_to_f64(&list.kind, start_str).with_context(|| err_msg.clone())?,
-                end: cut_str_to_f64(&list.kind, end_str).with_context(|| err_msg.clone())?,
+            items.push(Item {
+                start: cut_str_to_f64(&kind, start_str).with_context(|| err_msg.clone())?,
+                end: cut_str_to_f64(&kind, end_str).with_context(|| err_msg.clone())?,
             })
         }
 
-        Ok(list)
+        Ok(cutlist)
     }
 }
 
@@ -269,11 +296,6 @@ impl TryFrom<&ProviderHeader> for CutList {
 
     /// Retrieve a cut list from a cutlist provider using the given header
     fn try_from(header: &ProviderHeader) -> Result<Self, Self::Error> {
-        let mut list = CutList {
-            kind: header.kind.clone(),
-            items: vec![],
-        };
-
         // Retrieve cut list in INI format
         let response = reqwest::blocking::get(
             CUTLIST_RETRIEVE_LIST_DETAILS_URI.to_string() + &header.id.to_string(),
@@ -286,12 +308,12 @@ impl TryFrom<&ProviderHeader> for CutList {
         })?
         .text()
         .with_context(|| format!("Could not parse response for cutlist {} as text", header.id))?;
-        let raw_list = Ini::load_from_str(&response).with_context(|| {
+        let cutlist_ini = Ini::load_from_str(&response).with_context(|| {
             format!("Could not parse response for cutlist {} as INI", header.id)
         })?;
 
         // Get number of cuts
-        let num_cuts = raw_list
+        let num_cuts = cutlist_ini
             .section(Some(CUTLIST_ITEM_GENERAL_SECTION))
             .with_context(|| {
                 format!(
@@ -314,82 +336,119 @@ impl TryFrom<&ProviderHeader> for CutList {
                 )
             })?;
 
-        // Get cuts and create cut list items from them
+        // Retrieve cuts from ini structure and create a cut list from them
+        let mut cutlist: CutList = Default::default();
         for i in 0..num_cuts {
-            let cut = raw_list
-                .section(Some(format!("{}{}", CUTLIST_ITEM_CUT_SECTION, i)))
-                .with_context(|| {
-                    format!(
-                        "Could not find section for cut no {} in cutlist {}",
-                        i, header.id
-                    )
-                })?;
-            if let Some(item) = Item::new(
-                cut.get(item_attr_start(&header.kind)).with_context(|| {
-                    format!(
-                        "Could not find attribute '{}' for cut no {}",
-                        item_attr_start(&header.kind),
-                        i
-                    )
-                })?,
-                cut.get(item_attr_duration(&header.kind)).with_context(|| {
-                    format!(
-                        "Could not find attribute '{}' for cut no {}",
-                        item_attr_duration(&header.kind),
-                        i
-                    )
-                })?,
-            )? {
-                list.items.push(item);
-            }
+            cutlist
+                .extend_from_ini_cut(&cutlist_ini, i)
+                .with_context(|| format!("Could not read cuts of cut list {}", header.id))?;
         }
 
-        Ok(list)
+        Ok(cutlist)
     }
 }
 
 impl CutList {
-    /// CHecks if a cut list is valid - i.e., whether the intervals do not
-    /// overlap and whether the interval start is before its end
-    pub fn is_valid(&self) -> bool {
-        let last_item: Option<&Item> = None;
-
-        for item in &self.items {
-            if item.start > item.end {
-                return false;
-            }
-            if let Some(last_item) = last_item {
-                if last_item.end > item.start {
-                    return false;
-                }
-            }
+    pub fn kinds(&self) -> Vec<Kind> {
+        let mut kinds: Vec<Kind> = vec![];
+        for kind in self.items.keys() {
+            kinds.push(kind.clone());
         }
-
-        true
+        kinds
     }
 
-    /// Creates the slit string that mkvmerge expects from a cut list
-    pub fn to_mkvmerge_split_str(&self) -> String {
-        let mut split_str = match self.kind {
+    /// Creates the split string that mkvmerge requires to cut a video
+    pub fn to_mkvmerge_split_str(&self, kind: &Kind) -> anyhow::Result<String> {
+        if !self.items.contains_key(kind) {
+            return Err(anyhow!(
+                "Cannot create mkvmerge split string: Cut list does not contain {} intervals",
+                kind
+            ));
+        }
+
+        let mut split_str = match kind {
             Kind::Frames => "parts-frames:",
             Kind::Time => "parts:",
         }
         .to_string();
 
-        for (i, item) in self.items.iter().enumerate() {
+        for (i, item) in self.items.get(kind).unwrap().iter().enumerate() {
             if i > 0 {
                 split_str += ",+"
             }
             write!(
                 split_str,
                 "{}-{}",
-                f64_to_cut_str(&self.kind, item.start),
-                f64_to_cut_str(&self.kind, item.end)
+                f64_to_cut_str(kind, item.start),
+                f64_to_cut_str(kind, item.end)
             )
             .expect("Cannot convert cut list item to mkvmerge split string");
         }
 
-        split_str
+        Ok(split_str)
+    }
+
+    /// Checks if a cut list is valid - i.e., whether at least one intervals
+    /// array exists, whether the intervals of an array do not overlap and
+    /// whether the start is before the end of each interval
+    pub fn validate(&self) -> anyhow::Result<()> {
+        if self.items.is_empty() {
+            return Err(anyhow!("Cut list does not contain intervals"));
+        }
+
+        // kind is just needed for the error messages
+        fn validate_intervals(kind: &Kind, items: &Vec<Item>) -> anyhow::Result<()> {
+            let last_item: Option<&Item> = None;
+
+            for item in items {
+                if item.start > item.end {
+                    return Err(anyhow!(
+                        "Cut list {} intervals are invalid: Start is after end",
+                        kind
+                    ));
+                }
+                if let Some(last_item) = last_item {
+                    if last_item.end > item.start {
+                        return Err(anyhow!("Cut list {} intervals overlap", kind));
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        if self.items.contains_key(&Kind::Frames) {
+            validate_intervals(&Kind::Frames, self.items.get(&Kind::Frames).unwrap())?;
+        }
+        if self.items.contains_key(&Kind::Time) {
+            validate_intervals(&Kind::Time, self.items.get(&Kind::Time).unwrap())?;
+        }
+
+        Ok(())
+    }
+
+    // Retrieves cut number cut_no from ini structure, creates a cut list item
+    // from it and appends it to the cut list
+    fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: i32) -> anyhow::Result<()> {
+        if cut_no == 0 {
+            // In case of the first cut, it is checked which kinds (frame numbers
+            // and/or time) are supported. The corresponding item arrays are
+            // created respectively
+            for kind in [&Kind::Frames, &Kind::Time] {
+                if let Ok(Some(item)) = Item::from_ini(cutlist_ini, cut_no, kind) {
+                    self.items.insert(kind.clone(), vec![item]);
+                }
+            }
+        } else {
+            for kind in self.kinds() {
+                if let Some(item) = Item::from_ini(cutlist_ini, cut_no, &kind).context(format!(
+                    "Cut no {} does not contain {} information, though the cut list supprts that",
+                    cut_no, kind,
+                ))? {
+                    self.items.get_mut(&kind).unwrap().push(item);
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -399,8 +458,8 @@ lazy_static! {
         Regex::new(r#"^(\d+):([0-5]\d)+:([0-5]\d)+(\.(\d{0,6}))*$"#).unwrap();
 }
 
-/// Converts the string representation of an interval start or end of a cut
-/// interval into a floating point number
+/// Converts the string representation of an interval start or end into a
+/// floating point number
 fn cut_str_to_f64(kind: &Kind, cut_str: &str) -> anyhow::Result<f64> {
     match kind {
         Kind::Frames => cut_str.parse::<f64>().with_context(|| {

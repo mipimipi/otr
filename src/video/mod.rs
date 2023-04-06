@@ -238,6 +238,9 @@ impl Video {
                 cutting::CutError::NoCutlist => {
                     println!("No cutlist exists for {:?}", self.file_name());
                 }
+                cutting::CutError::Default => {
+                    println!("Default cut error");
+                }
             }
 
             return Ok(());
