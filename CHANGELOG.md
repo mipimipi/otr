@@ -1,5 +1,16 @@
 # Changelog
 
+## [Release 0.6.0(https://gitlab.com/mipimipi/otr/tags/v0.6.0) (2023-04-07
+
+### Added
+
+- Possibility to read a cut list from file: `otr cut` got a corresponding option
+- If cut list intervals are defined based on frame numbers AND time, consider both options. So far, in this case only the fram numbers intervals were used
+
+### Changed
+
+- Syntax of intervals string of `otr cut`: `times` -> `time`
+
 ## [Release 0.5.0(https://gitlab.com/mipimipi/otr/tags/v0.5.0) (2023-04-01
 
 ### Added

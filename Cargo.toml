@@ -1,6 +1,6 @@
 [package]
 name = "otr"
-version = "0.5.0"
+version = "0.6.0"
 description = "otr decodes and cuts video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
 edition = "2021"
 authors = [ "Michael Picht <mipi@fsfe.org>"]

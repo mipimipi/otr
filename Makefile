@@ -38,7 +38,7 @@ release:
 		echo "new version is not greater than old version"; \
 		exit 1; \
 	fi; \
-	sed -i -e "s/^version.*/version = \"$${VER_NEW#v}\"/" ./Cargo.toml; \
+	sed -i -e "s/^version.*/version = \"$${VER_NEW#v}\"/" ./Cargo.toml;
 	@git commit -a -s -m "release $(RELEASE)"
 	@git push
 	@git tag -a $(RELEASE) -m "release $(RELEASE)"
