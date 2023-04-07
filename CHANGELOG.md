@@ -1,6 +1,6 @@
 # Changelog
 
-## [Release 0.6.0(https://gitlab.com/mipimipi/otr/tags/v0.6.0) (2023-04-07
+## [Release 0.6.0](https://gitlab.com/mipimipi/otr/tags/v0.6.0) (2023-04-07
 
 ### Added
 
@@ -11,7 +11,7 @@
 
 - Syntax of intervals string of `otr cut`: `times` -> `time`
 
-## [Release 0.5.0(https://gitlab.com/mipimipi/otr/tags/v0.5.0) (2023-04-01
+## [Release 0.5.0](https://gitlab.com/mipimipi/otr/tags/v0.5.0) (2023-04-01
 
 ### Added
 
@@ -21,13 +21,13 @@
 
 - Introduced sub commands `process` and `cut`
 
-## [Release 0.4.0(https://gitlab.com/mipimipi/otr/tags/v0.4.0) (2022-09-24
+## [Release 0.4.0](https://gitlab.com/mipimipi/otr/tags/v0.4.0) (2022-09-24
 
 ### Changed
 
 - Refactoring: made the code "rustier"
 
-## [Release 0.3.0(https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-13
+## [Release 0.3.0](https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-13
 
 ### Changed
 
@@ -35,7 +35,7 @@
 - Migrated from [structopt](https://github.com/TeXitoi/structopt) to [clap](https://docs.rs/clap/latest/clap/)
 - Refactoring
 
-## [Release 0.2.0(https://gitlab.com/mipimipi/otr/tags/v0.2.0) (2022-09-09)
+## [Release 0.2.0](https://gitlab.com/mipimipi/otr/tags/v0.2.0) (2022-09-09)
 
 ### Changed
 
