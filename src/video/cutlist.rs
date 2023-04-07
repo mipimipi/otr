@@ -6,8 +6,11 @@ use serde::Deserialize;
 use std::{
     cmp::{self, Eq, PartialEq},
     collections::HashMap,
+    convert::TryFrom,
     fmt::{self, Debug, Display, Write},
+    fs,
     hash::Hash,
+    path::Path,
     str::{self, FromStr},
 };
 
@@ -18,6 +21,8 @@ const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?i
 /// Names for sections and attributes for the INI file of cutlist.at
 const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
 const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
+const CUTLIST_ITEM_META_SECTION: &str = "Meta";
+const CUTLIST_ITEM_CUTLIST_ID: &str = "CutlistId";
 const CUTLIST_ITEM_CUT_SECTION: &str = "Cut";
 const CUTLIST_ITEM_TIME_START: &str = "Start";
 const CUTLIST_ITEM_TIME_DURATION: &str = "Duration";
@@ -291,10 +296,105 @@ impl FromStr for CutList {
     }
 }
 
+/// Create a cut list from an ini structure
+impl TryFrom<&Ini> for CutList {
+    type Error = anyhow::Error;
+
+    fn try_from(cutlist_ini: &Ini) -> Result<Self, Self::Error> {
+        // Get cut list id
+        fn cutlist_id(cutlist: &Ini) -> anyhow::Result<&str> {
+            cutlist
+                .section(Some(CUTLIST_ITEM_META_SECTION))
+                .with_context(|| {
+                    format!(
+                        "Could not find section '{}' in cutlist",
+                        CUTLIST_ITEM_META_SECTION
+                    )
+                })?
+                .get(CUTLIST_ITEM_CUTLIST_ID)
+                .with_context(|| {
+                    format!(
+                        "Could not find attribute '{}' in cutlist",
+                        CUTLIST_ITEM_CUTLIST_ID
+                    )
+                })
+        }
+
+        let id = match cutlist_id(cutlist_ini) {
+            Ok(id) => Some(id),
+            _ => None,
+        };
+
+        // Get number of cuts
+        let num_cuts = cutlist_ini
+            .section(Some(CUTLIST_ITEM_GENERAL_SECTION))
+            .with_context(|| {
+                format!(
+                    "Could not find section '{}' in cutlist '{}'",
+                    CUTLIST_ITEM_GENERAL_SECTION,
+                    id.unwrap_or("unknown")
+                )
+            })?
+            .get(CUTLIST_ITEM_NUM_OF_CUTS)
+            .with_context(|| {
+                format!(
+                    "Could not find attribute '{}' in cutlist '{}'",
+                    CUTLIST_ITEM_NUM_OF_CUTS,
+                    id.unwrap_or("unknown")
+                )
+            })?
+            .parse::<i32>()
+            .with_context(|| {
+                format!(
+                    "Could not parse attribute '{}' in cutlist '{}'",
+                    CUTLIST_ITEM_NUM_OF_CUTS,
+                    id.unwrap_or("unknown")
+                )
+            })?;
+
+        // Retrieve cuts from ini structure and create a cut list from them
+        let mut cutlist: CutList = Default::default();
+        for i in 0..num_cuts {
+            cutlist
+                .extend_from_ini_cut(cutlist_ini, i)
+                .with_context(|| {
+                    format!(
+                        "Could not read cuts of cut list '{}'",
+                        id.unwrap_or("unknown")
+                    )
+                })?;
+        }
+
+        Ok(cutlist)
+    }
+}
+
+/// Retrieve a cut list from a file
+impl TryFrom<&Path> for CutList {
+    type Error = anyhow::Error;
+
+    fn try_from(cutlist_file: &Path) -> Result<Self, Self::Error> {
+        CutList::try_from(
+            &Ini::load_from_str(&fs::read_to_string(cutlist_file).with_context(|| {
+                format!(
+                    "Could not read from cut list file '{}'",
+                    cutlist_file.display()
+                )
+            })?)
+            .with_context(|| {
+                format!(
+                    "Could not parse response for cutlist '{}' as INI",
+                    cutlist_file.display()
+                )
+            })?,
+        )
+    }
+}
+
+/// Retrieve a cut list from a cutlist provider using the given header
 impl TryFrom<&ProviderHeader> for CutList {
     type Error = anyhow::Error;
 
-    /// Retrieve a cut list from a cutlist provider using the given header
     fn try_from(header: &ProviderHeader) -> Result<Self, Self::Error> {
         // Retrieve cut list in INI format
         let response = reqwest::blocking::get(
@@ -312,39 +412,7 @@ impl TryFrom<&ProviderHeader> for CutList {
             format!("Could not parse response for cutlist {} as INI", header.id)
         })?;
 
-        // Get number of cuts
-        let num_cuts = cutlist_ini
-            .section(Some(CUTLIST_ITEM_GENERAL_SECTION))
-            .with_context(|| {
-                format!(
-                    "Could not find section '{}' in cutlist {}",
-                    CUTLIST_ITEM_GENERAL_SECTION, header.id
-                )
-            })?
-            .get(CUTLIST_ITEM_NUM_OF_CUTS)
-            .with_context(|| {
-                format!(
-                    "Could not find attribute '{}' in cutlist {}",
-                    CUTLIST_ITEM_NUM_OF_CUTS, header.id
-                )
-            })?
-            .parse::<i32>()
-            .with_context(|| {
-                format!(
-                    "Could not parse attribute '{}' in cutlist {}",
-                    CUTLIST_ITEM_NUM_OF_CUTS, header.id
-                )
-            })?;
-
-        // Retrieve cuts from ini structure and create a cut list from them
-        let mut cutlist: CutList = Default::default();
-        for i in 0..num_cuts {
-            cutlist
-                .extend_from_ini_cut(&cutlist_ini, i)
-                .with_context(|| format!("Could not read cuts of cut list {}", header.id))?;
-        }
-
-        Ok(cutlist)
+        CutList::try_from(&cutlist_ini)
     }
 }
 

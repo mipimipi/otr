@@ -311,9 +311,6 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
     let mut response = general_purpose::STANDARD
         .decode(&response)
         .with_context(|| "Could not decode response to decoding key request from base64")?;
-    // TODO: remove
-    // let mut response = base64::decode(&response)
-    //     .with_context(|| "Could not decode response to decoding key request from base64")?;
 
     // check response length
     if response.len() < 2 * BLOCK_SIZE || response.len() % BLOCK_SIZE != 0 {
@@ -399,9 +396,6 @@ fn decoding_params_request(
         + user
         + "&ZZ="
         + now;
-    // TODO: remove
-    // let request: String =
-    //     OTR_URL.to_string() + "?code=" + &base64::encode(code) + "&AA=" + user + "&ZZ=" + now;
 
     Ok(request)
 }

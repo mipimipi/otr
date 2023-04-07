@@ -31,20 +31,23 @@ pub struct Args {
 }
 
 #[derive(Subcommand)]
+#[group(name = "input", required = false, multiple = false)]
 pub enum Commands {
     #[command(
         name = "cut",
         about = "Cut a video",
         long_about = indoc! {"
-            Cut a video if possible (i.e., if either cut lists exist or cut intervals
-            where submitted). The video files (the uncut and cut video files) are
-            moved to the corresponding working (sub)directories
-        "}
+            Cut a video if possible (i.e., either at least one cut list exists on cutlist.at,
+            a cut list file is given, or cut intervals are submitted). 
+            The video files (the uncut and cut video files) are moved to the corresponding
+            work (sub)directories"}
     )]
     Cut {
         #[arg(
+	    short = 'i',
             long = "intervals",
             value_name = "INTERVALS_STRING",
+	    group = "input",
             help = indoc! {"
             Cut intervals, either based on as time or frames numbers. The INTERVALS_STRING
             starts either with the key word \"frames\" or \"time\" respectively. After a
@@ -56,6 +59,16 @@ pub enum Commands {
                 \"frames:[123,45667][48345,679868]\""}
         )]
         intervals: Option<String>,
+        #[arg(
+	    short = 'l',
+            long = "list",
+            value_name = "CUTLIST_FILE_PATH",
+	    group = "input",
+            help = indoc! {"
+            Path of a cut list file. The content of the file must have the INI format of
+            cutlist.at."}
+        )]
+        list: Option<PathBuf>,
         #[arg(name = "video", help = "Path of video to be cut")]
         video: PathBuf,
     },
@@ -87,8 +100,8 @@ pub enum Commands {
     },
 }
 
-/// Command line arguments. The conversion / determination into that structure
-/// is done once only. The result is stored in a static variable.
+/// Command line arguments. The conversion into that structure is done once only.
+// The result is stored in a static variable.
 pub fn args() -> &'static Args {
     static ARGS: OnceCell<Args> = OnceCell::new();
     ARGS.get_or_init(Args::parse)

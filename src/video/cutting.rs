@@ -54,16 +54,22 @@ where
         ..
     } = &cli::args().command
     {
-        cut_with_cli_cutlist(in_path, out_path, intervals)
+        cut_with_cli_intervals(in_path, out_path, intervals)
+    } else if let cli::Commands::Cut {
+        list: Some(cutlist_path),
+        ..
+    } = &cli::args().command
+    {
+        cut_with_cutlist_from_file(in_path, out_path, cutlist_path)
     } else {
-        cut_with_provider_cutlist(in_path, out_path)
+        cut_with_cutlist_from_provider(in_path, out_path)
     }
 }
 
 /// Cut a video with a cut list derived from the --intervals command line
 /// option. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-fn cut_with_cli_cutlist<P, Q, S>(in_path: P, out_path: Q, intervals: S) -> Result<(), CutError>
+fn cut_with_cli_intervals<P, Q, S>(in_path: P, out_path: Q, intervals: S) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -84,9 +90,39 @@ where
     }
 }
 
+/// Cut a video with a cut list read from an INI file. in_path is the path of the
+/// decoded video file. out_path is the path of the cut video file.
+fn cut_with_cutlist_from_file<P, Q, R>(
+    in_path: P,
+    out_path: Q,
+    cutlist_path: R,
+) -> Result<(), CutError>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+    R: AsRef<Path>,
+{
+    let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
+    let cutlist = CutList::try_from(cutlist_path.as_ref())?;
+
+    cutlist.validate().context(format!(
+        "Cut list retrieved from '{}' is invalid",
+        cutlist_path.as_ref().display()
+    ))?;
+
+    match cut_with_mkvmerge(&in_path, &out_path, &cutlist).context(format!(
+        "Could not cut {:?} with cut list from '{}'",
+        file_name,
+        cutlist_path.as_ref().display()
+    )) {
+        Err(err) => Err(CutError::Any(err)),
+        _ => Ok(()),
+    }
+}
+
 /// Cut a video with a cut list retrieved from a provider. in_path is the path
 /// of the decoded video file. out_path is the path of the cut video file.
-fn cut_with_provider_cutlist<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
+fn cut_with_cutlist_from_provider<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
