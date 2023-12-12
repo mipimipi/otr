@@ -111,7 +111,7 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
         WORKING_SUB_DIRS.get_or_try_init(|| {
             let mut kind_to_path: HashMap<DirKind, PathBuf> = HashMap::new();
             let working_dir = working_dir()?;
-            for dir_kind in vec![
+            for dir_kind in [
                 DirKind::Root,
                 DirKind::Encoded,
                 DirKind::Decoded,
