@@ -1,10 +1,15 @@
 [package]
 name = "otr"
 version = "0.6.1"
-description = "otr decodes and cuts video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
-edition = "2021"
 authors = [ "Michael Picht <mipi@fsfe.org>"]
 license = "GPL-3.0-or-later"
+description = "otr decodes and cuts video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
+readme = "README.md"
+homepage = "https://gitlab.com/mipimipi/otr"
+repository = "https://gitlab.com/mipimipi/otr"
+keywords = ["cli", "online tv recorder", "videos", "otrkey", "decode", "cut"]
+categories = ["command-line-utilities"]
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
