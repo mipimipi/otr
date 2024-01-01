@@ -7,7 +7,7 @@ description = "otr decodes and cuts video files that were downloaded from Online
 readme = "README.md"
 homepage = "https://gitlab.com/mipimipi/otr"
 repository = "https://gitlab.com/mipimipi/otr"
-keywords = ["cli", "online tv recorder", "videos", "otrkey", "decode", "cut"]
+keywords = ["cli", "online tv recorder", "videos", "otrkey", "decode"]
 categories = ["command-line-utilities"]
 edition = "2021"
 
