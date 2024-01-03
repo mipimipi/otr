@@ -20,7 +20,9 @@ lint:
 	reuse lint
 
 install:
-	@install -Dm755 target/release/$(PROG) $(DESTDIR)/usr/bin/$(PROG)
+	install -Dm755 target/release/$(PROG) $(DESTDIR)/usr/bin/$(PROG)
+	install -Dm644 resources/$(PROG).desktop $(DESTDIR)/usr/share/applications/$(PROG).desktop
+	install -Dm644 resources/otrkey_mime.xml $(DESTDIR)/usr/share/mime/packages/otrkey_mime.xml
 
 # Call make release RELEASE=vX.Y.Z
 # (1) Adjust version in Cargo.toml and PKGBUILD to RELEASE, commit and push

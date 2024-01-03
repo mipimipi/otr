@@ -47,15 +47,13 @@ To download otr, enter
 After that, build otr by executing
 
     cd otr
-    cargo build --release
+    make
 
 Finally, execute
 
-    cp target/release/otr /usr/bin/otr
-    cp resources/otr.desktop /usr/share/applications/otr.desktop
-	cp resources/otrkey_mime.xml usr/share/mime/packages/otrkey_mime.xml
+    make install
 
-as `root`.
+as `root` to install otr.
 
 Since otr is the only application that can process files of the new mime type, it should now be called automatically if you double click on an otrkey file.
 
