@@ -286,7 +286,7 @@ where
 /// Request decoding parameters (incl. decoding key) via OTR web service and
 /// return them as hash map: key -> value.
 fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
-    // request decoding key from OTR
+    // Request decoding key from OTR
     let response = reqwest::blocking::Client::builder()
         .user_agent("Windows-OTR-Decoder/".to_string() + DECODER_VERSION)
         .build()
@@ -299,7 +299,13 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
             "Response to decoding key request is corrupted: could not turn into text"
         })?;
 
-    // check for error reported by OTR web service
+    // check for error reported by OTR web service. The first if statement checks
+    // if there was an error message at all.
+    if &response.len() < &OTR_ERROR_INDICATOR.len() {
+        return Err(anyhow!(
+            "Unidentifiable error while requesting decoding key"
+        ));
+    }
     if &response[..OTR_ERROR_INDICATOR.len()] == OTR_ERROR_INDICATOR {
         return Err(anyhow!(
             "Error while requesting decoding key: '{}'",
