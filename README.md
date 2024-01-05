@@ -106,4 +106,4 @@ There, video files are stored depending on their processing status. I.e., `Cut` 
 
 # License
 
-[GNU Public License v3.0](https://gitlab.com/mipimipi/otr/blob/master/LICENSE)
+[GNU Public License v3.0](https://gitlab.com/mipimipi/otr/blob/main/LICENSE)
