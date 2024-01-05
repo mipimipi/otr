@@ -81,6 +81,14 @@ otr requires only 3 pieces of information:
 
 These parameters can either be submitted on the command line or (more convenient) stored in a [JSON](https://en.wikipedia.org/wiki/JSON) configuration file. The path of this file can also either be submitted on the command line when otr is called or (again more convenient), the default path is used. That's `<XDG-CONFIG-HOME-DIR>/otr.json`, in most of the cases `<XDG-CONFIG-HOME-DIR>` equals to `~/.config`.
 
+The configuration file could look like this:
+
+	{
+		"user": "<YOUR OTR USER",
+		"password": "<YOUR OTR PASSWORD>",
+		"working_dir": "<PATH TO YOUR OTR WORKING DIRECTORY>"
+	}
+
 ### Working Directory
 
 otr requires a working directory (`~/Videos/OTR`, for example). In this directory, the sub directories `Encoded`, `Decoded` and `Cut` are created. Thus, the directory structure is like so:
@@ -91,7 +99,11 @@ otr requires a working directory (`~/Videos/OTR`, for example). In this director
         |
         |- Decoded
         |   |- Archive
-        |    
+        |
         |- Cut
 
 There, video files are stored depending on their processing status. I.e., `Cut` contains the video files that have been cut, `Decoded` the decoded files that have not been cut yet (it can happen that a video can be decoded but cannot be cut because cut lists don't exist yet). If videos have been cut, the uncut version is stored under `Decoded/Archive` to allow users to repeat the cutting if they are not happy with the result.
+
+# License
+
+[GNU Public License v3.0](https://gitlab.com/mipimipi/otr/blob/master/LICENSE)
