@@ -103,3 +103,7 @@ otr requires a working directory (`~/Videos/OTR`, for example). In this director
         |- Cut
 
 There, video files are stored depending on their processing status. I.e., `Cut` contains the video files that have been cut, `Decoded` the decoded files that have not been cut yet (it can happen that a video can be decoded but cannot be cut because cut lists don't exist yet). If videos have been cut, the uncut version is stored under `Decoded/Archive` to allow users to repeat the cutting if they are not happy with the result.
+
+# License
+
+[GNU Public License v3.0](https://gitlab.com/mipimipi/otr/blob/master/LICENSE)
