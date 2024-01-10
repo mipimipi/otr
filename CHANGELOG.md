@@ -1,5 +1,11 @@
 # Changelog
 
+## [Release 0.7.0](https://gitlab.com/mipimipi/otr/tags/v0.7.0) (2024-01-10
+
+### Added
+
+- Support for macOS
+
 ## [Release 0.6.0](https://gitlab.com/mipimipi/otr/tags/v0.6.0) (2023-04-07
 
 ### Added

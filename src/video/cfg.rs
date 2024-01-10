@@ -5,7 +5,14 @@ use std::{cmp::Eq, collections::HashMap, fmt, fs, fs::File, io::BufReader, path:
 use crate::cli;
 
 const CFG_FILENAME: &str = "otr.json";
+
+/// Set the default configuration directory depending on the OS. Currently only
+/// macOS and Linux are supported. Thus, if compilation is done on a different
+/// OS, an error is thrown
+#[cfg(target_os = "linux")]
 const CFG_DEFAULT_DIR: &str = ".config";
+#[cfg(target_os = "macos")]
+const CFG_DEFAULT_DIR: &str = "Library/Application Support";
 
 const SUB_PATH_ROOT: &str = "";
 const SUB_PATH_ENCODED: &str = "Encoded";

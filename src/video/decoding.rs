@@ -301,7 +301,7 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
 
     // check for error reported by OTR web service. The first if statement checks
     // if there was an error message at all.
-    if &response.len() < &OTR_ERROR_INDICATOR.len() {
+    if response.len() < OTR_ERROR_INDICATOR.len() {
         return Err(anyhow!(
             "Unidentifiable error while requesting decoding key"
         ));
