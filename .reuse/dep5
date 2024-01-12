@@ -12,8 +12,8 @@ Files: .gitignore
        Cargo.toml
        Makefile
        README.md
+       CONTRIBUTING.md
        CHANGELOG.md
-       pkg/*
        resources/*
        src/*
 Copyright: 2022-2023 Michael Picht <mipi@fsfe.org>
