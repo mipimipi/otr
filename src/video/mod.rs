@@ -109,12 +109,12 @@ impl TryFrom<&PathBuf> for Video {
 
         if let Some(file_name) = path.file_name() {
             if let Some(file_name_str) = file_name.to_str() {
-                // check if path represents a cut video file (the check for cut
+                // Check if path represents a cut video file (the check for cut
                 // video files must be done before the check for uncut video
                 // file since cut video files in some cases also match the
                 // regex for uncut files)
                 if RE_CUT_VIDEO.is_match(file_name_str) {
-                    // assemble Video instance
+                    // Assemble Video instance
                     let captures = RE_CUT_VIDEO.captures(file_name_str).unwrap();
                     let appendix = captures
                         .get(2)
@@ -132,9 +132,9 @@ impl TryFrom<&PathBuf> for Video {
                         s: Status::Cut,
                     });
                 }
-                // check if path represents an encoded or decoded video file
+                // Check if path represents an encoded or decoded video file
                 if RE_UNCUT_VIDEO.is_match(file_name_str) {
-                    // assemble Video instance
+                    // Assemble Video instance
                     let captures = RE_UNCUT_VIDEO.captures(file_name_str).unwrap();
                     return Ok(Video {
                         p: path.to_path_buf(),
@@ -213,7 +213,7 @@ impl Video {
         self.p.file_name().unwrap().to_str().unwrap()
     }
 
-    // True if video already cut, false otherwise.
+    // True if video is already cut, false otherwise.
     pub fn is_processed(&self) -> bool {
         self.status() == Status::Cut
     }
@@ -223,13 +223,12 @@ impl Video {
     pub fn cut(&mut self) -> anyhow::Result<()> {
         // nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
-            println!("{:?} is not (yet) decoded", self.file_name());
             return Ok(());
         }
 
         println!("Cutting {:?} ...", self.file_name());
 
-        // execute cutting of video
+        // Execute cutting of video
         if let Err(err) = cutting::cut(&self, self.next_path()?) {
             match err {
                 cutting::CutError::Any(err) => {
@@ -247,7 +246,7 @@ impl Video {
             return Ok(());
         }
 
-        // in case of having cut the video successfully, move decoded video to
+        // In case of having cut the video successfully, move decoded video to
         // archive directory. Otherwise return with error
         if let Err(err) = fs::rename(
             &self.p,
@@ -264,7 +263,7 @@ impl Video {
             );
         }
 
-        // update video (status, path)
+        // Update video (status, path)
         self.change_to_next_status()?;
 
         println!("Cut {:?}", self.file_name());
@@ -275,19 +274,19 @@ impl Video {
     /// Decode an encoded video. The video status and path is updated accordingly.
     /// The video file is moved accordingly.
     pub fn decode(&mut self) -> anyhow::Result<()> {
-        // nothing to do if video is not in status "encoded"
+        // Nothing to do if video is not in status "encoded"
         if self.status() != Status::Encoded {
             return Ok(());
         }
 
         println!("Decoding {:?} ...", self.file_name());
 
-        // execute decoding
+        // Execute decoding
         decoding::decode(&self, &self.next_path()?)?;
 
         println!("Decoded {:?}", self.file_name());
 
-        // update video (status, path)
+        // Update video (status, path)
         self.change_to_next_status()?;
 
         Ok(())
@@ -338,19 +337,19 @@ impl Video {
     /// Moves a video file to the working sub directory corresponding to the status
     /// of the video. The Video (i.e., its path) is changed accordingly.
     fn move_to_working_dir(&mut self) -> anyhow::Result<()> {
-        // since video path was already checked for compliance before, it is OK to
+        // Since video path was already checked for compliance before, it is OK to
         // simply unwrap the result
         let source_dir = self.p.parent().unwrap();
 
         let target_dir = cfg::working_sub_dir(&(self.status()).as_dir_kind())?;
         let target_path = target_dir.join(self.file_name());
 
-        // nothing to do if video is already in correct directory
+        // Nothing to do if video is already in correct directory
         if source_dir == target_dir {
             return Ok(());
         }
 
-        // copy video file to working sub directory and adjust path
+        // Copy video file to working sub directory and adjust path
         fs::rename(&self.p, &target_path)?;
         self.p = target_path;
 

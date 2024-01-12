@@ -10,7 +10,7 @@ use std::fs;
 pub fn collect() -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
-    // collect videos from command line parameters
+    // Collect videos from command line parameters
     for path in &cli::args().videos() {
         if let Ok(mut video) = Video::try_from(path) {
             video.move_to_working_dir()?;
@@ -20,7 +20,7 @@ pub fn collect() -> anyhow::Result<Vec<Video>> {
         println!("{:?} is not a valid video file: Ignored", path)
     }
 
-    // if no videos have been submited via command line: collect videos from
+    // If no videos have been submited via command line: collect videos from
     // working (sub) directories
     if videos.is_empty() {
         for dir_kind in [
