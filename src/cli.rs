@@ -18,14 +18,16 @@ pub struct Args {
         global = true,
         short = 'c',
         long = "config",
-        help = "Path of config file (default is ~/.config/otr.json)"
+        help = indoc! {"
+        Path of configuration file (default is ~/.config/otr.json on Linux and
+        ~/Library/Application\\ Support/otr.json on macOS)"}
     )]
     pub cfg_file_path: Option<PathBuf>,
     #[arg(
         global = true,
         short = 'd',
         long = "directory",
-        help = "Working directory (overwrites config file content)"
+        help = "Working directory (overwrites configuration file content)"
     )]
     pub working_dir: Option<PathBuf>,
 }
@@ -49,7 +51,7 @@ pub enum Commands {
             value_name = "INTERVALS_STRING",
 	    group = "input",
             help = indoc! {"
-            Cut intervals, either based on as time or frames numbers. The INTERVALS_STRING
+            Cut intervals, either based on time or frames numbers. The INTERVALS_STRING
             starts either with the key word \"frames\" or \"time\" respectively. After a
             colon, the list of intervals must be specified as \"[<START>,<END>]...\".
             Times must be given as [H...]H:MM:SS.ssssss, where \"ssssss\" denotes the sub
@@ -87,13 +89,13 @@ pub enum Commands {
         #[arg(
             short = 'u',
             long = "user",
-            help = "User name for Online TV Recorder (overwrites config file content)"
+            help = "User name for Online TV Recorder (overwrites configuration file content)"
         )]
         user: Option<String>,
         #[arg(
             short = 'p',
             long = "password",
-            help = "Password for Online TV Recorder (overwrites config file content)"
+            help = "Password for Online TV Recorder (overwrites configuration file content)"
         )]
         password: Option<String>,
         videos: Vec<PathBuf>,
