@@ -3,7 +3,12 @@
 
 # otr
 
-otr is a command line tool that decodes and cuts video files from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux and macOS. Supported architectures are [x86_64](https://en.wikipedia.org/wiki/X86-64)/amd64 and [AArch64](https://en.wikipedia.org/wiki/AArch64)/arm64, incl. platforms such as [Raspberry Pi 4](https://en.wikipedia.org/wiki/Raspberry_Pi_4) or [Apple Silicon, M series](https://en.wikipedia.org/wiki/Apple_silicon#M_series).
+otr is a command line tool that decodes and cuts video files from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux and macOS.
+
+Supported architectures are:
+
+- [x86_64](https://en.wikipedia.org/wiki/X86-64)/amd64
+- [AArch64](https://en.wikipedia.org/wiki/AArch64)/arm64, incl. platforms such as [Raspberry Pi 4](https://en.wikipedia.org/wiki/Raspberry_Pi_4) and [Apple Silicon, M series](https://en.wikipedia.org/wiki/Apple_silicon#M_series)
 
 ## Features
 
