@@ -94,7 +94,7 @@ pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
             };
             Ok(data)
         }
-        _ => Err(anyhow!("This command does not require OTR access dats")),
+        _ => Err(anyhow!("This command does not require OTR access data")),
     }
 }
 

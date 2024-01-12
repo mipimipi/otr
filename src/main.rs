@@ -28,13 +28,20 @@ fn process_videos() -> anyhow::Result<()> {
         })
         // Decode videos and print error messages. Result of the closure is the
         // video (&mut Video), whether the decoding was successful or not.
-        .map(|video| match video.decode() {
-            Ok(()) => video,
-            Err(err) => {
-                eprintln!(
-                    "{:?}",
-                    err.context(format!("Could not decode {:?}", video.file_name()))
-                );
+        .map(|video| {
+            // Execute decoding only if otr sub command requires that
+            if let cli::Commands::Process { .. } = &cli::args().command {
+                match video.decode() {
+                    Ok(()) => video,
+                    Err(err) => {
+                        eprintln!(
+                            "{:?}",
+                            err.context(format!("Could not decode {:?}", video.file_name()))
+                        );
+                        video
+                    }
+                }
+            } else {
                 video
             }
         })

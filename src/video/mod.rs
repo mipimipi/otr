@@ -223,6 +223,7 @@ impl Video {
     pub fn cut(&mut self) -> anyhow::Result<()> {
         // nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
+            println!("{:?} is not (yet) decoded", self.file_name());
             return Ok(());
         }
 
