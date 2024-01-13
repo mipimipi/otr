@@ -68,7 +68,8 @@ pub struct OTRAccessData {
 pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
     // Check if command requires OTR access data
     match &cli::args().command {
-        cli::Commands::Process { user, password, .. } => {
+        cli::Commands::Decode { user, password, .. }
+        | cli::Commands::Process { user, password, .. } => {
             // Retrieve OTR user and password
             let data = OTRAccessData {
                 user: if let Some(user) = user {
@@ -97,17 +98,6 @@ pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
         _ => Err(anyhow!("This command does not require OTR access data")),
     }
 }
-
-/// Videos (i.e., vector of paths of the video files) whose paths have been
-/// submitted as command line arguments.
-/*
-pub fn videos() -> &'static Path> {
-    match &cli::args().command {
-        cli::Commands::Cut { video, .. } => vec![video],
-        cli::Commands::Process { videos, .. } => videos.to_vec(),
-    }
-}
-*/
 
 /// Working sub directories (i.e., the sub directories for encoded, decoded, cut
 /// etc. videos). The directory paths are determined once only and stored in a
@@ -163,7 +153,7 @@ struct CfgFromFile {
 fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
     static CFG_FROM_FILE: OnceCell<CfgFromFile> = OnceCell::new();
     CFG_FROM_FILE.get_or_try_init(|| {
-        // assemble path for config file. Sequence:
+        // Assemble path for config file. Sequence:
         //   (1) command line arguments
         //   (2) XDG config dir (if that's available)
         //   (3) XDG home dir (if that's available) joined with default
@@ -178,7 +168,7 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
             return Err(anyhow!("could not determine path of configuration file"));
         };
 
-        // parse config file
+        // Parse config file
         let file = File::open(&path)
             .with_context(|| format!("could not open configuration file {:?}", path))?;
         let cfg = serde_json::from_reader(BufReader::new(file))

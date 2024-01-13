@@ -77,7 +77,7 @@ Since otr is then the only application that can process files of the new mime ty
 
 ## Usage
 
-`otr process` processes all video files that are submitted as command line parameters and the files stored in the working directory (see below). `otr cut` allows cutting a single video specifying the cut intervals on command line. See the command line help for details.
+`otr process` processes all video files that are submitted as command line parameters and the files stored in the working directory (see below). `otr decode`, `otr cut` allow decoding / cutting a single video. See the command line help for details.
 
 otr requires a certain schema for the name of video files (that is the schema OTR uses as well). See schema in pseudo regular expression notation for encoded and decoded files:
 

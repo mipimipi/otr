@@ -68,25 +68,25 @@ where
         ));
     }
 
-    // retrieve parameters from header of encoded video file
+    // Retrieve parameters from header of encoded video file
     let mut in_file = File::open(&in_path)?;
     let header_params =
         header_params(&mut in_file).with_context(|| "Could not extract video header from")?;
 
-    // check size of encoded video file
+    // Check size of encoded video file
     if (in_file.metadata()?.len() as usize) < file_size_from_params(&header_params) {
         return Err(anyhow!("Video file seems to be corrupt: it is too small"));
     }
 
     // OTR user and password
     let access_data = cfg::otr_access_data()?;
-    // current date
+    // Current date
     let now = current_date();
-    // get key that is needed to encrypt the payload of the decoding key request
+    // Get key that is needed to encrypt the payload of the decoding key request
     let cbc_key = cbc_key(&access_data.user, &access_data.password, &now).with_context(|| {
         "Could not determine CBC key for encryption of decoding key request payload"
     })?;
-    // get parameters for decoding (particularly the decoding key)
+    // Get parameters for decoding (particularly the decoding key)
     let decoding_params = decoding_params(
         &cbc_key,
         &decoding_params_request(
@@ -100,7 +100,7 @@ where
     )
     .with_context(|| "Could not retrieve decoding key")?;
 
-    // decode encoded video file in concurrent threads using the decoding key
+    // Decode encoded video file in concurrent threads using the decoding key
     if let Err(err) = decode_in_parallel(
         &mut in_file,
         out_path,
@@ -116,7 +116,7 @@ where
         return Err(err);
     }
 
-    // remove encoded video file
+    // Remove encoded video file
     remove_file(&in_path).with_context(|| {
         format!(
             "Could not remove {:?} after successful decoding",
@@ -168,7 +168,7 @@ fn current_date() -> String {
 /// decoded chunk. This function is called in a dedicated thread for each
 /// chunk.
 fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
-    // chunks can only be decoded if their size is greater than
+    // Chunks can only be decoded if their size is greater than
     // BLOCK_SIZE. Otherwise, the chunk is returned encoded
     if chunk.capacity() >= BLOCK_SIZE {
         Ecb::<BlowfishLE, NoPadding>::new_from_slices(
@@ -193,14 +193,14 @@ fn decode_in_parallel<P>(
 where
     P: AsRef<Path> + Debug,
 {
-    // output file
+    // Output file
     let mut out_file = File::create(&out_path)
         .with_context(|| format!("Could not create result file {:?}", out_path))?;
 
-    // thread handle to be able to wait until all threads are done
+    // Thread handle to be able to wait until all threads are done
     let mut thread_handles = vec![];
 
-    // create channels and start threads to determine the checksums of the video
+    // Create channels and start threads to determine the checksums of the video
     // file before and after decoding, if that is required
     let (enc_hash_sender, enc_hash_receiver) = channel();
     let (dec_hash_sender, dec_hash_receiver) = channel();
@@ -209,13 +209,13 @@ where
         thread::spawn(move || -> [u8; 16] { hashing_queue(dec_hash_receiver) }),
     );
 
-    // read the chunks sequentially and start and decode each chunk in a
+    // Read the chunks sequentially and start and decode each chunk in a
     // separate thread
     for chunk_size in chunk_sizes(file_size_from_params(header_params) - HEADER_LENGTH) {
-        // allocate next chunk
+        // Allocate next chunk
         let mut chunk = vec![0u8; chunk_size];
 
-        // read chunk from encoded file and check number of bytes that were read
+        // Read chunk from encoded file and check number of bytes that were read
         if in_file
             .read(&mut chunk[..chunk_size])
             .with_context(|| "Could not read chunk")?
@@ -224,20 +224,20 @@ where
             return Err(anyhow!("Chunk is too short"));
         }
 
-        // update hasher to determine the checksum of the encoded file
+        // Update hasher to determine the checksum of the encoded file
         enc_hash_sender.send(chunk.clone()).unwrap();
 
-        // decode chunk in new thread. Each thread returns the decoded chunk
+        // Decode chunk in new thread. Each thread returns the decoded chunk
         let dec_key = key.to_string();
         thread_handles.push(thread::spawn(move || -> Chunk {
             decode_chunk(&dec_key, chunk)
         }));
     }
 
-    // sender must be dropped explicitely to make hasher thread terminating
+    // Sender must be dropped explicitly to make hasher thread terminating
     drop(enc_hash_sender);
 
-    // join thread results. I.e., receive chunks and write them to the output
+    // Join thread results. I.e., receive chunks and write them to the output
     // file. The chunk sequence is kept by the sequence of thread handles in the
     // thread handles vector
     for handle in thread_handles {
@@ -259,10 +259,10 @@ where
         }
     }
 
-    // sender must be dropped explicitly to make hasher thread terminating
+    // Sender must be dropped explicitly to make hasher thread terminating
     drop(dec_hash_sender);
 
-    // check MD5 checksums
+    // Check MD5 checksums
     if !verify_checksum(
         &enc_hash_handle.join().unwrap(),
         &header_params[PARAM_ENCODED_HASH],
@@ -299,7 +299,7 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
             "Response to decoding key request is corrupted: could not turn into text"
         })?;
 
-    // check for error reported by OTR web service. The first if statement checks
+    // Check for error reported by OTR web service. The first if statement checks
     // if there was an error message at all.
     if response.len() < OTR_ERROR_INDICATOR.len() {
         return Err(anyhow!(
@@ -313,12 +313,12 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
         ));
     }
 
-    // decode response from base64 format
+    // Decode response from base64 format
     let mut response = general_purpose::STANDARD
         .decode(&response)
         .with_context(|| "Could not decode response to decoding key request from base64")?;
 
-    // check response length
+    // Check response length
     if response.len() < 2 * BLOCK_SIZE || response.len() % BLOCK_SIZE != 0 {
         return Err(anyhow!(
             "Response to decoding key request is corrupted: must be a multiple of {}",
@@ -326,7 +326,7 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
         ));
     }
 
-    // decode response
+    // Decode response
     let init_vector = &response[..BLOCK_SIZE];
     let response_decrypted = Cbc::<BlowfishLE, NoPadding>::new_from_slices(
         &hex::decode(cbc_key).with_context(|| "Could not turn CBC key into byte array")?,
@@ -336,7 +336,7 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
     .decrypt(&mut response[BLOCK_SIZE..])
     .with_context(|| "Could not decrypt decryption key response")?;
 
-    // extract parameters into hash map
+    // Extract parameters into hash map
     let decoding_params = params_from_str(
         str::from_utf8(response_decrypted)
             .with_context(|| "Reponse to decoding key request is corrupt")?,
@@ -355,7 +355,7 @@ fn decoding_params_request(
     password: &str,
     now: &str,
 ) -> anyhow::Result<String> {
-    // assemble payload
+    // Assemble payload
     let mut payload: String = "&A=".to_string()
         + user
         + "&P="
@@ -377,7 +377,7 @@ fn decoding_params_request(
         + "&D=";
     payload += &random_hex_string(512 - BLOCK_SIZE - payload.len());
 
-    // encrypt payload
+    // Encrypt payload
     let init_vector = random_byte_vector(BLOCK_SIZE);
     let payload_as_bytes = unsafe { payload.as_bytes_mut() };
     let payload_encrypted = Cbc::<BlowfishLE, NoPadding>::new_from_slices(
@@ -390,11 +390,11 @@ fn decoding_params_request(
     .encrypt(payload_as_bytes, 512 - BLOCK_SIZE)
     .with_context(|| "Could not encrypt decryption key request payload")?;
 
-    // assemble value for code parameter
+    // Assemble value for code parameter
     let mut code = init_vector;
     code.extend_from_slice(payload_encrypted);
 
-    // finally assemble URL
+    // Finally assemble URL
     let request: String = OTR_URL.to_string()
         + "?code="
         + &general_purpose::STANDARD.encode(code)
@@ -425,7 +425,7 @@ fn hashing_queue(queue: Receiver<Chunk>) -> [u8; 16] {
         hasher.update(data);
     }
 
-    // retrieve and return checksum
+    // Retrieve and return checksum
     let mut checksum = [0u8; 16];
     checksum.clone_from_slice(&hasher.finalize()[..]);
     checksum
@@ -436,7 +436,7 @@ fn hashing_queue(queue: Receiver<Chunk>) -> [u8; 16] {
 fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
     let mut buffer = [0; HEADER_LENGTH];
 
-    // read file header
+    // Read file header
     if in_file
         .read(&mut buffer)
         .with_context(|| "Could not read file")?
@@ -445,12 +445,12 @@ fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
         return Err(anyhow!("File is too short"));
     }
 
-    // check if file header starts with OTRKEY indicator
+    // Check if file header starts with OTRKEY indicator
     if str::from_utf8(&buffer[0..FILETYPE_LENGTH])? != OTRKEY_FILETYPE {
         return Err(anyhow!("File does not start with '{}'", OTRKEY_FILETYPE));
     }
 
-    // create Blowfish little endian cypher and decrypt rest of file header
+    // Create Blowfish little endian cypher and decrypt rest of file header
     Ecb::<BlowfishLE, NoPadding>::new_from_slices(
         &hex::decode(PREAMBLE_KEY).with_context(|| "Could not decrypt preamble key")?,
         &hex::decode("").unwrap(),
@@ -459,7 +459,7 @@ fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
     .decrypt(&mut buffer[FILETYPE_LENGTH..])
     .with_context(|| "Could not decode file header")?;
 
-    // extract parameters
+    // Extract parameters
     let header_params = params_from_str(
         str::from_utf8(&buffer[FILETYPE_LENGTH..])
             .with_context(|| "Decrypted file header is corrupt")?,
@@ -484,12 +484,12 @@ fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTR
         if param.is_empty() {
             continue;
         }
-        // split in key / value and add parameter to map
+        // Split in key / value and add parameter to map
         let a: Vec<&str> = param.split('=').collect();
         params.insert(a[0].to_string(), a[1].to_string());
     }
 
-    // check if all parameters are there
+    // Check if all parameters are there
     for key in must_have {
         if params.get(key).is_none() {
             return Err(anyhow!("Parameter {:?} could not be extracted", key));
@@ -519,7 +519,7 @@ fn verify_checksum(checksum: &[u8], hash: &str) -> anyhow::Result<bool> {
         return Err(anyhow!("MD5 hash must be 48 characters long"));
     }
 
-    // reduce hash length to 32 characters and convert it into bytes array
+    // Reduce hash length to 32 characters and convert it into bytes array
     let reduced_hash = hex::decode(
         hash.chars()
             .enumerate()
