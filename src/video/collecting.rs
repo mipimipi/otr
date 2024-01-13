@@ -7,7 +7,7 @@ use std::fs;
 /// submitted via the command line, creates the corresponding Video instances
 /// and returns them as vector, sorted by key (ascending) and status
 /// (descending).
-pub fn collect() -> anyhow::Result<Vec<Video>> {
+pub fn collect(verbose: bool) -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
     // Collect videos from command line parameters
@@ -17,7 +17,9 @@ pub fn collect() -> anyhow::Result<Vec<Video>> {
             videos.push(video);
             continue;
         }
-        println!("{:?} is not a valid video file: Ignored", path)
+        if verbose {
+            println!("{:?} is not a valid video file: Ignored", path)
+        }
     }
 
     // If no videos have been submited via command line: collect videos from
@@ -37,7 +39,9 @@ pub fn collect() -> anyhow::Result<Vec<Video>> {
     }
 
     if videos.is_empty() {
-        println!("No videos found :(");
+        if verbose {
+            println!("No videos found :(");
+        }
     } else {
         videos.sort();
     }

@@ -30,6 +30,34 @@ pub struct Args {
         help = "Working directory (overwrites configuration file content)"
     )]
     pub working_dir: Option<PathBuf>,
+    #[arg(
+        global = true,
+        short = 'v',
+        long = "verbose",
+        help = "Print status and progress information during command execution"
+    )]
+    pub verbose: bool,
+}
+
+impl Args {
+    /// Returns videos (file paths) as array for different sub commands. This is
+    /// independent from number of videos a sub command required (i.e., only one
+    /// or many)
+    pub fn videos(&self) -> Vec<PathBuf> {
+        // TODO: avoid copying values
+        match &self.command {
+            Commands::Cut { video, .. } => vec![video.to_path_buf()],
+            Commands::Decode { video, .. } => vec![video.to_path_buf()],
+            Commands::Process { videos, .. } => videos.to_vec(),
+        }
+    }
+}
+
+/// Command line arguments. The conversion into that structure is done once only.
+/// The result is stored in a static variable.
+pub fn args() -> &'static Args {
+    static ARGS: OnceCell<Args> = OnceCell::new();
+    ARGS.get_or_init(Args::parse)
 }
 
 #[derive(Subcommand)]
@@ -125,28 +153,7 @@ pub enum Commands {
     },
 }
 
-/// Command line arguments. The conversion into that structure is done once only.
-/// The result is stored in a static variable.
-pub fn args() -> &'static Args {
-    static ARGS: OnceCell<Args> = OnceCell::new();
-    ARGS.get_or_init(Args::parse)
-}
-
-impl Args {
-    /// Returns videos (file paths) as array for different sub commands. This is
-    /// independent from number of videos a sub command required (i.e., only one
-    /// or many)
-    pub fn videos(&self) -> Vec<PathBuf> {
-        // TODO: avoid copying values
-        match &self.command {
-            Commands::Cut { video, .. } => vec![video.to_path_buf()],
-            Commands::Decode { video, .. } => vec![video.to_path_buf()],
-            Commands::Process { videos, .. } => videos.to_vec(),
-        }
-    }
-}
-
-/// Returns true if otr with sub command "cut", otherwise false
+/// Returns true if otr was called with sub command "cut", otherwise false
 pub fn is_cut_command() -> bool {
     if let Commands::Cut { .. } = args().command {
         return true;
@@ -154,7 +161,7 @@ pub fn is_cut_command() -> bool {
     false
 }
 
-/// Returns true if otr with sub command "decode", otherwise false
+/// Returns true if otr was called with sub command "decode", otherwise false
 pub fn is_decode_command() -> bool {
     if let Commands::Decode { .. } = args().command {
         return true;
@@ -162,7 +169,7 @@ pub fn is_decode_command() -> bool {
     false
 }
 
-/// Returns true if otr with sub command "process", otherwise false
+/// Returns true if otr was called with sub command "process", otherwise false
 pub fn is_process_command() -> bool {
     if let Commands::Process { .. } = args().command {
         return true;

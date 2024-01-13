@@ -220,13 +220,15 @@ impl Video {
 
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly.
-    pub fn cut(&mut self) -> anyhow::Result<()> {
+    pub fn cut(&mut self, verbose: bool) -> anyhow::Result<()> {
         // nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
             return Ok(());
         }
 
-        println!("Cutting {:?} ...", self.file_name());
+        if verbose {
+            println!("Cutting {:?} ...", self.file_name());
+        }
 
         // Execute cutting of video
         if let Err(err) = cutting::cut(&self, self.next_path()?) {
@@ -266,25 +268,31 @@ impl Video {
         // Update video (status, path)
         self.change_to_next_status()?;
 
-        println!("Cut {:?}", self.file_name());
+        if verbose {
+            println!("Cut {:?}", self.file_name());
+        }
 
         Ok(())
     }
 
     /// Decode an encoded video. The video status and path is updated accordingly.
     /// The video file is moved accordingly.
-    pub fn decode(&mut self) -> anyhow::Result<()> {
+    pub fn decode(&mut self, verbose: bool) -> anyhow::Result<()> {
         // Nothing to do if video is not in status "encoded"
         if self.status() != Status::Encoded {
             return Ok(());
         }
 
-        println!("Decoding {:?} ...", self.file_name());
+        if verbose {
+            println!("Decoding {:?} ...", self.file_name());
+        }
 
         // Execute decoding
         decoding::decode(&self, &self.next_path()?)?;
 
-        println!("Decoded {:?}", self.file_name());
+        if verbose {
+            println!("Decoded {:?}", self.file_name());
+        }
 
         // Update video (status, path)
         self.change_to_next_status()?;

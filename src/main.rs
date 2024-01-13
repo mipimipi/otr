@@ -9,7 +9,7 @@ use video::Video;
 macro_rules! decode_or_not {
     ($video:ident) => {
         if cli::is_decode_command() || cli::is_process_command() {
-            match $video.decode() {
+            match $video.decode(cli::args().verbose) {
                 Ok(()) => $video,
                 Err(err) => {
                     eprintln!(
@@ -29,7 +29,7 @@ macro_rules! decode_or_not {
 macro_rules! cut_or_not {
     ($video:ident) => {
         if cli::is_cut_command() || cli::is_process_command() {
-            match $video.cut() {
+            match $video.cut(cli::args().verbose) {
                 Ok(()) => $video,
                 Err(err) => {
                     eprintln!(
@@ -50,7 +50,7 @@ fn process_videos() -> anyhow::Result<()> {
     // Collect video files from command line parameters and (sub) working
     // directories. They are returned as vector sorted by video key and
     // (descending) status.
-    video::collect()?
+    video::collect(cli::args().verbose)?
         // Create an iterator that delivers type &mut Video
         .iter_mut()
         // Remove duplicate entries of the same video with "lower" status.
@@ -61,7 +61,7 @@ fn process_videos() -> anyhow::Result<()> {
         .dedup_by(|v1, v2| v1.key() == v2.key())
         // print message for already cut videos
         .map(|video| {
-            if cli::is_process_command() && video.is_processed() {
+            if cli::args().verbose && cli::is_process_command() && video.is_processed() {
                 println!("Processed already: {:?}", video.file_name());
             }
             video
