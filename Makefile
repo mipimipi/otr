@@ -1,20 +1,15 @@
 PROG=otr
 
-# Get current operation system. Currently only Linux and macOS (Darwin) are
-# supported
+# Set variables whose values are specific to the operation system. Currently only
+# Linux and macOS (Darwin) are supported.
+# TARGETDIR is required for the install recipe
 OS=$(shell uname)
-ifneq ($(OS), Linux)
-ifneq ($(OS), Darwin)
-$(error otr is only running on Linux or macOS)
-endif
-endif
-
-# Set project VERSION to last tag name. If no tag exists, set it to v0.0.0
-$(eval TAGS=$(shell git rev-list --tags))
-ifdef TAGS
-	VERSION=$(shell git describe --tags --abbrev=0)
+ifeq ($(OS), Linux)
+TARGETDIR=/usr/bin
+else ifeq ($(OS), Darwin)
+TARGETDIR=/usr/local/bin
 else
-	VERSION=v0.0.0	
+$(error otr is only running on Linux or macOS)
 endif
 
 # Build executable 
@@ -27,12 +22,8 @@ lint:
 	reuse lint
 
 install:
-ifeq ($(OS), Linux)
-	install -Dm755 target/release/$(PROG) $(DESTDIR)/usr/bin/$(PROG)
-else
-	mkdir -p $(DESTDIR)/usr/local/bin
-	cp target/release/$(PROG) $(DESTDIR)/usr/local/bin/.
-endif
+	mkdir -p $(DESTDIR)$(TARGETDIR)
+	cp target/release/$(PROG) $(DESTDIR)$(TARGETDIR)/.
 
 # Call make release RELEASE=vX.Y.Z
 # (1) Adjust version in Cargo.toml and PKGBUILD to RELEASE, commit and push
