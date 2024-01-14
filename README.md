@@ -64,7 +64,7 @@ as `root` to install otr.
 
 ### Installation with package managers
 
-For Arch Linux (and other Linux distros, that can install packages from the Arch User Repository) there is a [otr package in AUR](https://aur.archlinux.org/packages/otr-git/).
+For Arch Linux (and other Linux distros, that can install packages from the Arch User Repository) there are the AUR packages [otr](https://aur.archlinux.org/packages/otr/) and [otr-git](https://aur.archlinux.org/packages/otr-git/). These packages are also available as binaries via the [nerdstuff repository](https://nerdstuff.org/repository/).
 
 ### OTRKEY mimetype
 
