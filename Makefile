@@ -9,12 +9,12 @@ TARGETDIR=/usr/bin
 else ifeq ($(OS), Darwin)
 TARGETDIR=/usr/local/bin
 else
-$(error otr is only running on Linux or macOS)
+$(error $(PROG) is only running on Linux or macOS)
 endif
 
 # Build executable 
 all:
-	cargo build --release --all-features
+	cargo build --release --all-features $(BUILD_FLAGS)
 
 .PHONY: all install lint release
 
