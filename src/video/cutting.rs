@@ -3,6 +3,7 @@ use crate::{
     video::cutlist::{self, CutList, Kind},
 };
 use anyhow::{anyhow, Context};
+use log::*;
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
@@ -154,7 +155,7 @@ where
                         break;
                     }
                     Err(err) => {
-                        eprintln!(
+                        error!(
                             "{:?}",
                             anyhow!(err).context(format!(
                                 "Could not cut {:?} with cut list {}",
@@ -166,7 +167,7 @@ where
                 }
             }
             Err(err) => {
-                eprintln!(
+                error!(
                     "{:?}",
                     anyhow!(err).context(format!(
                         "Could not retrieve cut list {} for {:?}",

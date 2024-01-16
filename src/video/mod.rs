@@ -7,6 +7,7 @@ mod decoding;
 use anyhow::anyhow;
 use cfg::DirKind;
 use lazy_static::lazy_static;
+use log::*;
 use regex::Regex;
 use std::{
     cmp, fmt, fs,
@@ -87,6 +88,7 @@ pub struct Video {
     p: PathBuf,
     k: Key,
     s: Status,
+    e: Option<anyhow::Error>,
 }
 
 /// Support conversion of a &PathBuf into a Video. Usage of From trait is not
@@ -130,6 +132,7 @@ impl TryFrom<&PathBuf> for Video {
                                 + &appendix,
                         ),
                         s: Status::Cut,
+                        e: None,
                     });
                 }
                 // Check if path represents an encoded or decoded video file
@@ -152,6 +155,7 @@ impl TryFrom<&PathBuf> for Video {
                         } else {
                             Status::Decoded
                         },
+                        e: None,
                     });
                 }
             }
@@ -208,6 +212,11 @@ impl Video {
         self.s
     }
 
+    // Video error
+    pub fn error(&self) -> &Option<anyhow::Error> {
+        &self.e
+    }
+
     // File name of a Video (i.e., the last part of its path)
     pub fn file_name(&self) -> &str {
         self.p.file_name().unwrap().to_str().unwrap()
@@ -220,84 +229,20 @@ impl Video {
 
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly.
-    pub fn cut(&mut self, verbose: bool) -> anyhow::Result<()> {
-        // nothing to do if video is not in status "decoded"
-        if self.status() != Status::Decoded {
-            return Ok(());
+    /// The real thing is done by _cut, the private counterpart function.
+    pub fn cut(&mut self) {
+        if let Err(err) = self._cut() {
+            self.e = Some(err)
         }
-
-        if verbose {
-            println!("Cutting {:?} ...", self.file_name());
-        }
-
-        // Execute cutting of video
-        if let Err(err) = cutting::cut(&self, self.next_path()?) {
-            match err {
-                cutting::CutError::Any(err) => {
-                    let err = err.context(format!("Could not cut {:?}", self.file_name()));
-                    eprintln!("{:?}", err);
-                }
-                cutting::CutError::NoCutlist => {
-                    println!("No cutlist exists for {:?}", self.file_name());
-                }
-                cutting::CutError::Default => {
-                    println!("Default cut error");
-                }
-            }
-
-            return Ok(());
-        }
-
-        // In case of having cut the video successfully, move decoded video to
-        // archive directory. Otherwise return with error
-        if let Err(err) = fs::rename(
-            &self.p,
-            cfg::working_sub_dir(&cfg::DirKind::Archive)
-                .unwrap()
-                .join(self.file_name()),
-        ) {
-            eprintln!(
-                "{:?}",
-                anyhow!(err).context(format!(
-                    "Could not move {:?} to archive directory after successful cutting",
-                    self.file_name()
-                ))
-            );
-        }
-
-        // Update video (status, path)
-        self.change_to_next_status()?;
-
-        if verbose {
-            println!("Cut {:?}", self.file_name());
-        }
-
-        Ok(())
     }
 
-    /// Decode an encoded video. The video status and path is updated accordingly.
-    /// The video file is moved accordingly.
-    pub fn decode(&mut self, verbose: bool) -> anyhow::Result<()> {
-        // Nothing to do if video is not in status "encoded"
-        if self.status() != Status::Encoded {
-            return Ok(());
+    /// Decode an encoded video. The video status and path is updated
+    /// accordingly. The video file is moved accordingly.
+    /// The real thing is done by _decode, the private counterpart function.
+    pub fn decode(&mut self) {
+        if let Err(err) = self._decode() {
+            self.e = Some(err)
         }
-
-        if verbose {
-            println!("Decoding {:?} ...", self.file_name());
-        }
-
-        // Execute decoding
-        decoding::decode(&self, &self.next_path()?)?;
-
-        if verbose {
-            println!("Decoded {:?}", self.file_name());
-        }
-
-        // Update video (status, path)
-        self.change_to_next_status()?;
-
-        Ok(())
     }
 
     // Path of the video it would have if it had the next status - i.e., the
@@ -339,6 +284,80 @@ impl Video {
             self.p = self.next_path()?;
             self.s = next_status;
         }
+        Ok(())
+    }
+
+    /// Cut a decoded Video. The video status and path is updated accordingly. The
+    /// video file is moved accordingly. Private cut function which is
+    /// wrapped by its public counterpart.
+    fn _cut(&mut self) -> anyhow::Result<()> {
+        // nothing to do if video is not in status "decoded"
+        if self.status() != Status::Decoded {
+            return Ok(());
+        }
+
+        info!("Cutting {:?} ...", self.file_name());
+
+        // Execute cutting of video
+        if let Err(err) = cutting::cut(&self, self.next_path()?) {
+            return match err {
+                cutting::CutError::NoCutlist => {
+                    Err(anyhow!("No cutlist exists for {:?}", self.file_name()))
+                }
+                cutting::CutError::Any(err) => {
+                    Err(err.context(format!("Could not cut {:?}", self.file_name())))
+                }
+                cutting::CutError::Default => Err(anyhow!(
+                    "Could not cut {:?} for an unknown reason",
+                    self.file_name()
+                )),
+            };
+        }
+
+        // In case of having cut the video successfully, move decoded video to
+        // archive directory. Otherwise return with error
+        if let Err(err) = fs::rename(
+            &self.p,
+            cfg::working_sub_dir(&cfg::DirKind::Archive)
+                .unwrap()
+                .join(self.file_name()),
+        ) {
+            error!(
+                "{:?}",
+                anyhow!(err).context(format!(
+                    "Could not move {:?} to archive directory after successful cutting",
+                    self.file_name()
+                ))
+            );
+        }
+
+        // Update video (status, path)
+        self.change_to_next_status()?;
+
+        info!("Cut {:?}", self.file_name());
+
+        Ok(())
+    }
+
+    /// Decode an encoded video. The video status and path is updated accordingly.
+    /// The video file is moved accordingly. Private decode function which is
+    /// wrapped by its public counterpart.
+    fn _decode(&mut self) -> anyhow::Result<()> {
+        // Nothing to do if video is not in status "encoded"
+        if self.status() != Status::Encoded {
+            return Ok(());
+        }
+
+        info!("Decoding {:?} ...", self.file_name());
+
+        // Execute decoding
+        decoding::decode(&self, &self.next_path()?)?;
+
+        info!("Decoded {:?}", self.file_name());
+
+        // Update video (status, path)
+        self.change_to_next_status()?;
+
         Ok(())
     }
 

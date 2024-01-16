@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context};
 use ini::Ini;
 use lazy_static::lazy_static;
+use log::*;
 use regex::Regex;
 use serde::Deserialize;
 use std::{
@@ -110,18 +111,26 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
         errors: String,
     }
 
+    trace!("\"{}\": Request cut lists from provider", file_name);
+
     let response = reqwest::blocking::get(CUTLIST_RETRIEVE_HEADERS_URI.to_string() + file_name)
         .with_context(|| {
             format!(
-                "Did not get a response for cut list header request for {}",
+                "Did not get a response for cut list header request for \"{}\"",
                 file_name
             )
         })?
         .text()
-        .with_context(|| format!("Could not parse cut list header response for {}", file_name))?;
+        .with_context(|| {
+            format!(
+                "Could not parse cut list header response for \"{}\"",
+                file_name
+            )
+        })?;
 
     if response.is_empty() {
-        return Err(anyhow!("Did not find a cut list for {:?}", file_name));
+        trace!("\"{}\": No cut lists retrieved from provider", file_name);
+        return Err(anyhow!("Did not find a cut list for \"{:?}\"", file_name));
     }
 
     let mut headers: Vec<ProviderHeader> = vec![];
@@ -129,10 +138,21 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
     let raw_headers: RawHeaders = quick_xml::de::from_str(&response)
         .with_context(|| format!("Could not parse cut list headers for {:?}", file_name))?;
 
+    trace!(
+        "\"{}\": {} cut lists retrieved from provider",
+        file_name,
+        raw_headers.headers.len()
+    );
+
     for raw_header in raw_headers.headers {
         // Do not accept cut lists with errors
         let num_errs = raw_header.errors.parse::<i32>();
         if num_errs.is_err() || num_errs.unwrap() > 0 {
+            trace!(
+                "\"{}\": Cut list {} has errors: Ignored",
+                file_name,
+                raw_header.id
+            );
             continue;
         }
 

@@ -1,13 +1,14 @@
 use super::{cfg, cfg::DirKind, Video};
 use crate::cli;
 use anyhow::{anyhow, Context};
+use log::*;
 use std::fs;
 
 /// Collect video files from the working (sub) directories and from the paths
 /// submitted via the command line, creates the corresponding Video instances
 /// and returns them as vector, sorted by key (ascending) and status
 /// (descending).
-pub fn collect(verbose: bool) -> anyhow::Result<Vec<Video>> {
+pub fn collect() -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
     // Collect videos from command line parameters
@@ -17,9 +18,7 @@ pub fn collect(verbose: bool) -> anyhow::Result<Vec<Video>> {
             videos.push(video);
             continue;
         }
-        if verbose {
-            println!("{:?} is not a valid video file: Ignored", path)
-        }
+        warn!("{:?} is not a valid video file: Ignored", path)
     }
 
     // If no videos have been submited via command line: collect videos from
@@ -39,9 +38,7 @@ pub fn collect(verbose: bool) -> anyhow::Result<Vec<Video>> {
     }
 
     if videos.is_empty() {
-        if verbose {
-            println!("No videos found :(");
-        }
+        info!("No videos found :(");
     } else {
         videos.sort();
     }
@@ -74,7 +71,7 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
                 videos.push(video);
             }
             Err(_) => {
-                println!("{:?} is not a valid video file: Ignored", &file_ref.path());
+                warn!("{:?} is not a valid video file: Ignored", &file_ref.path());
                 continue;
             }
         }

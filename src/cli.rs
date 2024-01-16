@@ -34,9 +34,15 @@ pub struct Args {
         global = true,
         short = 'v',
         long = "verbose",
-        help = "Print status and progress information during command execution"
+	action = clap::ArgAction::Count,
+        help = indoc! {"
+        Print status and progress information during command execution. The number of
+        occurences of this flag defines the verbosity level. If this flag is not set at
+        all, only error messages are displayed. If it occurs once, warnings and info
+        messages are displayed. With two or more occurences the highest trace level is
+        switched on"}
     )]
-    pub verbose: bool,
+    pub verbose: u8,
 }
 
 impl Args {

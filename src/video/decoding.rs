@@ -5,6 +5,7 @@ use block_modes::block_padding::NoPadding;
 use block_modes::{BlockMode, Cbc, Ecb};
 use blowfish::BlowfishLE;
 use chrono::Datelike;
+use log::*;
 use md5::{Digest, Md5};
 use std::{
     clone::Clone,
@@ -138,6 +139,8 @@ fn cbc_key(user: &str, password: &str, now: &str) -> anyhow::Result<String> {
         + &user_hash[21..32]
         + &now[6..]
         + &password_hash[19..32];
+
+    debug!("CBC_KEY: {}", as_serde!(cbc_key));
 
     Ok(cbc_key)
 }
@@ -377,6 +380,11 @@ fn decoding_params_request(
         + "&D=";
     payload += &random_hex_string(512 - BLOCK_SIZE - payload.len());
 
+    debug!(
+        "Payload for decoding parameters request: {}",
+        as_serde!(payload)
+    );
+
     // Encrypt payload
     let init_vector = random_byte_vector(BLOCK_SIZE);
     let payload_as_bytes = unsafe { payload.as_bytes_mut() };
@@ -447,6 +455,11 @@ fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
 
     // Check if file header starts with OTRKEY indicator
     if str::from_utf8(&buffer[0..FILETYPE_LENGTH])? != OTRKEY_FILETYPE {
+        debug!(
+            "OTRKEY file header is: \"{}\"",
+            str::from_utf8(&buffer[0..FILETYPE_LENGTH]).unwrap()
+        );
+
         return Err(anyhow!("File does not start with '{}'", OTRKEY_FILETYPE));
     }
 
@@ -480,6 +493,7 @@ fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
 /// If any of these keys is missing, an error is returned
 fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTRParams> {
     let mut params: OTRParams = HashMap::new();
+
     for param in params_str.split('&') {
         if param.is_empty() {
             continue;
@@ -488,6 +502,8 @@ fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTR
         let a: Vec<&str> = param.split('=').collect();
         params.insert(a[0].to_string(), a[1].to_string());
     }
+
+    debug!("OTRKEY file parameters: {}", as_serde!(params));
 
     // Check if all parameters are there
     for key in must_have {
