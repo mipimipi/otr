@@ -12,6 +12,13 @@ use video::Video;
 /// dedicated function (with appropriate result type) to be able to use the ?
 /// operator to propagate errors
 fn process_videos() -> anyhow::Result<()> {
+    // Get OTR user and password parameters from command line
+    let (user, password) = if cli::is_decode_command() || cli::is_process_command() {
+        cli::args().otr_access_data()
+    } else {
+        (None, None)
+    };
+
     // Collect video files from command line parameters and (sub) working
     // directories. They are returned as vector sorted by video key and
     // (descending) status.
@@ -36,7 +43,7 @@ fn process_videos() -> anyhow::Result<()> {
         // video (&mut Video), whether the decoding was successful or not.
         .map(|video| {
             if cli::is_decode_command() || cli::is_process_command() {
-                video.decode();
+                video.decode(user, password);
             }
             video
         })
@@ -47,7 +54,7 @@ fn process_videos() -> anyhow::Result<()> {
         .into_par_iter()
         .map(|video| {
             if cli::is_cut_command() || cli::is_process_command() {
-                video.cut();
+                video.cut(cli::args().cutlist_access_type());
             }
             video
         })

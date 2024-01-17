@@ -53,50 +53,36 @@ impl DirKind {
     }
 }
 
-/// Access data (i.e., user and password) for the services provided by the OTR
-/// website
-#[derive(Default)]
-pub struct OTRAccessData {
-    pub user: String,
-    pub password: String,
-}
-
-/// Determine OTR access data. First, it is tried to retrieve that data from the
+/// Determine OTR access data (user, password). First, it is tried to retrieve that data from the
 /// command line arguments. If these do not contain the access data, they are
 /// tried to retrieved from the configuration file. The result is stored in a
 /// static variable. Thus, data is only determined once.
-pub fn otr_access_data() -> anyhow::Result<OTRAccessData> {
-    // Check if command requires OTR access data
-    match &cli::args().command {
-        cli::Commands::Decode { user, password, .. }
-        | cli::Commands::Process { user, password, .. } => {
-            // Retrieve OTR user and password
-            let data = OTRAccessData {
-                user: if let Some(user) = user {
-                    user.clone()
-                } else {
-                    let cfg = cfg_from_file()?;
-                    if let Some(user) = &cfg.user {
-                        user.clone()
-                    } else {
-                        return Err(anyhow!("OTR user name is not configured"));
-                    }
-                },
-                password: if let Some(password) = password {
-                    password.clone()
-                } else {
-                    let cfg = cfg_from_file()?;
-                    if let Some(password) = &cfg.password {
-                        password.clone()
-                    } else {
-                        return Err(anyhow!("OTR password is not configured"));
-                    }
-                },
-            };
-            Ok(data)
-        }
-        _ => Err(anyhow!("This command does not require OTR access data")),
-    }
+pub fn otr_access_data<'clicfg>(
+    user: Option<&'clicfg str>,
+    password: Option<&'clicfg str>,
+) -> anyhow::Result<(&'clicfg str, &'clicfg str)> {
+    Ok((
+        if let Some(_user) = user {
+            _user
+        } else {
+            let cfg = cfg_from_file()?;
+            if let Some(user) = &cfg.user {
+                user.as_str()
+            } else {
+                return Err(anyhow!("OTR user name is not configured"));
+            }
+        },
+        if let Some(_password) = password {
+            _password
+        } else {
+            let cfg = cfg_from_file()?;
+            if let Some(password) = &cfg.password {
+                password.as_str()
+            } else {
+                return Err(anyhow!("OTR password is not configured"));
+            }
+        },
+    ))
 }
 
 /// Working sub directories (i.e., the sub directories for encoded, decoded, cut
@@ -154,13 +140,10 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
     static CFG_FROM_FILE: OnceCell<CfgFromFile> = OnceCell::new();
     CFG_FROM_FILE.get_or_try_init(|| {
         // Assemble path for config file. Sequence:
-        //   (1) command line arguments
-        //   (2) XDG config dir (if that's available)
-        //   (3) XDG home dir (if that's available) joined with default
+        //   (1) XDG config dir (if that's available)
+        //   (2) XDG home dir (if that's available) joined with default
         //       (relative) configuration path
-        let path = if let Some(path) = &cli::args().cfg_file_path {
-            path.to_path_buf()
-        } else if let Some(cfg_dir) = dirs::config_dir() {
+        let path = if let Some(cfg_dir) = dirs::config_dir() {
             cfg_dir.join(CFG_FILENAME)
         } else if let Some(home_dir) = dirs::home_dir() {
             home_dir.join(CFG_DEFAULT_DIR).join(CFG_FILENAME)

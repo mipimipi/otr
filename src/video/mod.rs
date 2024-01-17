@@ -15,6 +15,7 @@ use std::{
 };
 
 pub use collecting::collect;
+pub use cutlist::AccessType as CutlistAccessType;
 
 /// Key of an OTR video. That's the left part of the file name ending with
 /// "_TVOON_DE". I.e., key of
@@ -230,8 +231,8 @@ impl Video {
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly.
     /// The real thing is done by _cut, the private counterpart function.
-    pub fn cut(&mut self) {
-        if let Err(err) = self._cut() {
+    pub fn cut(&mut self, cutlist_access: cutlist::AccessType) {
+        if let Err(err) = self._cut(cutlist_access) {
             self.e = Some(err)
         }
     }
@@ -239,8 +240,8 @@ impl Video {
     /// Decode an encoded video. The video status and path is updated
     /// accordingly. The video file is moved accordingly.
     /// The real thing is done by _decode, the private counterpart function.
-    pub fn decode(&mut self) {
-        if let Err(err) = self._decode() {
+    pub fn decode(&mut self, user: Option<&str>, password: Option<&str>) {
+        if let Err(err) = self._decode(user, password) {
             self.e = Some(err)
         }
     }
@@ -248,7 +249,7 @@ impl Video {
     // Path of the video it would have if it had the next status - i.e., the
     // decoded status if it is encoded now or the cut status if it is decoded
     // now. If the video is already cut, its current path is returned.
-    pub fn next_path(&self) -> anyhow::Result<PathBuf> {
+    fn next_path(&self) -> anyhow::Result<PathBuf> {
         match self.s {
             Status::Encoded => Ok(self
                 .p
@@ -290,7 +291,7 @@ impl Video {
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly. Private cut function which is
     /// wrapped by its public counterpart.
-    fn _cut(&mut self) -> anyhow::Result<()> {
+    fn _cut(&mut self, cutlist_access: cutlist::AccessType) -> anyhow::Result<()> {
         // nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
             return Ok(());
@@ -299,7 +300,7 @@ impl Video {
         info!("Cutting {:?} ...", self.file_name());
 
         // Execute cutting of video
-        if let Err(err) = cutting::cut(&self, self.next_path()?) {
+        if let Err(err) = cutting::cut(&self, self.next_path()?, cutlist_access) {
             return match err {
                 cutting::CutError::NoCutlist => {
                     Err(anyhow!("No cutlist exists for {:?}", self.file_name()))
@@ -342,16 +343,18 @@ impl Video {
     /// Decode an encoded video. The video status and path is updated accordingly.
     /// The video file is moved accordingly. Private decode function which is
     /// wrapped by its public counterpart.
-    fn _decode(&mut self) -> anyhow::Result<()> {
+    fn _decode(&mut self, user: Option<&str>, password: Option<&str>) -> anyhow::Result<()> {
         // Nothing to do if video is not in status "encoded"
         if self.status() != Status::Encoded {
             return Ok(());
         }
 
+        let (user, password) = cfg::otr_access_data(user, password)?;
+
         info!("Decoding {:?} ...", self.file_name());
 
         // Execute decoding
-        decoding::decode(&self, &self.next_path()?)?;
+        decoding::decode(&self, &self.next_path()?, user, password)?;
 
         info!("Decoded {:?}", self.file_name());
 

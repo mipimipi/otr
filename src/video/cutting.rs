@@ -1,7 +1,4 @@
-use crate::{
-    cli,
-    video::cutlist::{self, CutList, Kind},
-};
+use crate::video::cutlist::{self, CutList, Kind};
 use anyhow::{anyhow, Context};
 use log::*;
 use std::{
@@ -42,40 +39,35 @@ impl From<anyhow::Error> for CutError {
 
 /// Cut a decoded video file. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-pub fn cut<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
+pub fn cut<P, Q>(in_path: P, out_path: Q, cl_access: cutlist::AccessType) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    // Call specialized cut functions: Either cut with a cut list derived from
-    // the --intervals command line option or retrieve cut lists from a
-    // provider
-    if let cli::Commands::Cut {
-        intervals: Some(intervals),
-        ..
-    } = &cli::args().command
-    {
-        cut_with_cli_intervals(in_path, out_path, intervals)
-    } else if let cli::Commands::Cut {
-        list: Some(cutlist_path),
-        ..
-    } = &cli::args().command
-    {
-        cut_with_cutlist_from_file(in_path, out_path, cutlist_path)
-    } else {
-        cut_with_cutlist_from_provider(in_path, out_path)
+    // Call specialized cut functions based on the cut list access type that was
+    // submitted
+    match cl_access {
+        cutlist::AccessType::Direct(intervals) => cut_with_intervals(in_path, out_path, intervals),
+        cutlist::AccessType::File(file) => cut_with_cutlist_from_file(in_path, out_path, file),
+        cutlist::AccessType::ID(id) => cut_with_cutlist_from_provider_by_id(in_path, out_path, id),
+        _ => cut_with_cutlist_from_provider_auto_select(in_path, out_path),
     }
 }
 
 /// Cut a video with a cut list derived from the --intervals command line
 /// option. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-fn cut_with_cli_intervals<P, Q, S>(in_path: P, out_path: Q, intervals: S) -> Result<(), CutError>
+fn cut_with_intervals<P, Q, S>(in_path: P, out_path: Q, intervals: S) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
     S: AsRef<str> + Display,
 {
+    trace!(
+        "Cutting \"{}\" with intervals",
+        in_path.as_ref().to_str().unwrap()
+    );
+
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
     let cutlist = CutList::from_str(intervals.as_ref())?;
 
@@ -103,6 +95,12 @@ where
     Q: AsRef<Path>,
     R: AsRef<Path>,
 {
+    trace!(
+        "Cutting \"{}\" with cut list from \"{}\"",
+        in_path.as_ref().to_str().unwrap(),
+        cutlist_path.as_ref().to_str().unwrap()
+    );
+
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
     let cutlist = CutList::try_from(cutlist_path.as_ref())?;
 
@@ -121,9 +119,52 @@ where
     }
 }
 
-/// Cut a video with a cut list retrieved from a provider. in_path is the path
-/// of the decoded video file. out_path is the path of the cut video file.
-fn cut_with_cutlist_from_provider<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
+/// Cut a video with a cut list retrieved from a provider by cut list id. in_path
+/// is the path of the decoded video file. out_path is the path of the cut video
+/// file.
+fn cut_with_cutlist_from_provider_by_id<P, Q>(
+    in_path: P,
+    out_path: Q,
+    id: u64,
+) -> Result<(), CutError>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    trace!(
+        "Cutting \"{}\" with cut list id {} from provider",
+        in_path.as_ref().to_str().unwrap(),
+        id
+    );
+
+    let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
+
+    // Retrieve cut lists from provider and cut video
+    match CutList::try_from(id) {
+        Ok(cutlist) => {
+            cutlist
+                .validate()
+                .context(format!("Cut list {} for {:?} is not valid", id, file_name))?;
+
+            match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(CutError::Any(anyhow!(err).context(format!(
+                    "Could not cut {:?} with cut list {}",
+                    file_name, id
+                )))),
+            }
+        }
+        Err(err) => Err(CutError::Any(anyhow!(err).context(format!(
+            "Could not retrieve cut list ID={} for {:?}",
+            id, file_name
+        )))),
+    }
+}
+
+/// Cut a video with a cut list retrieved from a provider by video file name and
+/// selected automatically. in_path is the path of the decoded video file.
+/// out_path is the path of the cut video file.
+fn cut_with_cutlist_from_provider_auto_select<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -141,7 +182,7 @@ where
     // Retrieve cut lists from provider and cut video
     let mut is_cut = false;
     for header in headers {
-        match CutList::try_from(&header) {
+        match CutList::try_from(header.id()) {
             Ok(cutlist) => {
                 cutlist.validate().context(format!(
                     "Cut list {} for {:?} is not valid",

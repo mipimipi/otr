@@ -19,6 +19,9 @@ use std::{
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
 
+/// cutlist.at (error) messages
+const CUTLIST_AT_ERROR_ID_NOT_FOUND: &str = "Not found.";
+
 /// Names for sections and attributes for the INI file of cutlist.at
 const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
 const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
@@ -60,6 +63,14 @@ impl Display for Kind {
             }
         )
     }
+}
+
+/// Cut list access type
+pub enum AccessType<'cli> {
+    Auto,
+    Direct(&'cli str),
+    File(&'cli Path),
+    ID(u64),
 }
 
 /// Header data to retrieve cut lists from a provider
@@ -411,26 +422,27 @@ impl TryFrom<&Path> for CutList {
     }
 }
 
-/// Retrieve a cut list from a cutlist provider using the given header
-impl TryFrom<&ProviderHeader> for CutList {
+/// Retrieve a cut list from a cutlist provider by cutlist id
+impl TryFrom<u64> for CutList {
     type Error = anyhow::Error;
 
-    fn try_from(header: &ProviderHeader) -> Result<Self, Self::Error> {
-        // Retrieve cut list in INI format
-        let response = reqwest::blocking::get(
-            CUTLIST_RETRIEVE_LIST_DETAILS_URI.to_string() + &header.id.to_string(),
-        )
-        .with_context(|| {
-            format!(
-                "Did not get a response for requesting cutlist {}",
-                header.id
-            )
-        })?
-        .text()
-        .with_context(|| format!("Could not parse response for cutlist {} as text", header.id))?;
-        let cutlist_ini = Ini::load_from_str(&response).with_context(|| {
-            format!("Could not parse response for cutlist {} as INI", header.id)
-        })?;
+    fn try_from(id: u64) -> Result<Self, Self::Error> {
+        // Retrieve cut list by ID
+        let response =
+            reqwest::blocking::get(CUTLIST_RETRIEVE_LIST_DETAILS_URI.to_string() + &id.to_string())
+                .with_context(|| format!("Did not get a response for requesting cutlist {}", id))?
+                .text()
+                .with_context(|| format!("Could not parse response for cutlist {} as text", id))?;
+        if response == CUTLIST_AT_ERROR_ID_NOT_FOUND {
+            return Err(anyhow!(
+                "Cut list with ID={} does not exist at provider",
+                id
+            ));
+        }
+
+        // Parse cut list
+        let cutlist_ini = Ini::load_from_str(&response)
+            .with_context(|| format!("Could not parse response for cutlist {} as INI", id))?;
 
         CutList::try_from(&cutlist_ini)
     }

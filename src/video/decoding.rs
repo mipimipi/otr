@@ -1,4 +1,3 @@
-use super::cfg;
 use anyhow::{anyhow, Context};
 use base64::{engine::general_purpose, Engine};
 use block_modes::block_padding::NoPadding;
@@ -55,7 +54,7 @@ type Chunk = Vec<u8>;
 
 /// Decode a encoded video file. in_path is the path of the decoded video file.
 /// out_path is the path of the cut video file.
-pub fn decode<P, Q>(in_path: P, out_path: Q) -> anyhow::Result<()>
+pub fn decode<P, Q>(in_path: P, out_path: Q, user: &str, password: &str) -> anyhow::Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path> + Debug + Copy,
@@ -79,25 +78,17 @@ where
         return Err(anyhow!("Video file seems to be corrupt: it is too small"));
     }
 
-    // OTR user and password
-    let access_data = cfg::otr_access_data()?;
     // Current date
     let now = current_date();
     // Get key that is needed to encrypt the payload of the decoding key request
-    let cbc_key = cbc_key(&access_data.user, &access_data.password, &now).with_context(|| {
+    let cbc_key = cbc_key(user, password, &now).with_context(|| {
         "Could not determine CBC key for encryption of decoding key request payload"
     })?;
     // Get parameters for decoding (particularly the decoding key)
     let decoding_params = decoding_params(
         &cbc_key,
-        &decoding_params_request(
-            &cbc_key,
-            &header_params,
-            &access_data.user,
-            &access_data.password,
-            &now,
-        )
-        .with_context(|| "Could not assemble request for decoding key")?,
+        &decoding_params_request(&cbc_key, &header_params, user, password, &now)
+            .with_context(|| "Could not assemble request for decoding key")?,
     )
     .with_context(|| "Could not retrieve decoding key")?;
 
