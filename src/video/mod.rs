@@ -14,6 +14,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub use cfg::working_dir;
 pub use collecting::collect;
 pub use cutlist::AccessType as CutlistAccessType;
 
@@ -95,10 +96,10 @@ pub struct Video {
 /// Support conversion of a &PathBuf into a Video. Usage of From trait is not
 /// possible since not all paths represent OTR videos and thus, an error can
 /// occur
-impl TryFrom<&PathBuf> for Video {
+impl TryFrom<&Path> for Video {
     type Error = anyhow::Error;
 
-    fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
         // Regular vexpressions to analyze video file names
         lazy_static! {
             // Analyze the name of a (potential) video file that is not cut -

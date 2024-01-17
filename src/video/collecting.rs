@@ -1,19 +1,17 @@
 use super::{cfg, cfg::DirKind, Video};
-use crate::cli;
 use anyhow::{anyhow, Context};
 use log::*;
-use std::fs;
+use std::{fs, path::Path};
 
-/// Collect video files from the working (sub) directories and from the paths
-/// submitted via the command line, creates the corresponding Video instances
-/// and returns them as vector, sorted by key (ascending) and status
-/// (descending).
-pub fn collect() -> anyhow::Result<Vec<Video>> {
+/// Collects video files from the submitted input paths and the working (sub)
+/// directories, creates the corresponding Video instances and returns them as
+/// vector, sorted by key (ascending) and status (descending).
+pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
-    // Collect videos from command line parameters
-    for path in &cli::args().videos() {
-        if let Ok(mut video) = Video::try_from(path) {
+    // Collect videos from input array
+    for path in in_videos {
+        if let Ok(mut video) = Video::try_from(*path) {
             video.move_to_working_dir()?;
             videos.push(video);
             continue;
@@ -65,7 +63,7 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
             continue;
         }
 
-        match Video::try_from(&file_ref.path()) {
+        match Video::try_from(file_ref.path().as_path()) {
             Ok(mut video) => {
                 video.move_to_working_dir()?;
                 videos.push(video);

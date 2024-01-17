@@ -2,7 +2,7 @@ use crate::video::CutlistAccessType;
 use clap::{Parser, Subcommand};
 use indoc::indoc;
 use once_cell::sync::OnceCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Structure to hold the command line arguments
 #[derive(Parser)]
@@ -85,12 +85,11 @@ impl Args {
     /// Returns videos (file paths) as array for different sub commands. This is
     /// independent from number of videos a sub command required (i.e., only one
     /// or many)
-    pub fn videos(&self) -> Vec<PathBuf> {
-        // TODO: avoid copying values
+    pub fn videos(&self) -> Vec<&Path> {
         match &self.command {
-            Commands::Cut { video, .. } => vec![video.to_path_buf()],
-            Commands::Decode { video, .. } => vec![video.to_path_buf()],
-            Commands::Process { videos, .. } => videos.to_vec(),
+            Commands::Cut { video, .. } => vec![video.as_path()],
+            Commands::Decode { video, .. } => vec![video.as_path()],
+            Commands::Process { videos, .. } => videos.iter().map(|p| p.as_path()).collect(),
         }
     }
 }

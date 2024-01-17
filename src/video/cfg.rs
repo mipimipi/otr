@@ -1,8 +1,13 @@
 use anyhow::{anyhow, Context};
 use once_cell::sync::OnceCell;
-use std::{cmp::Eq, collections::HashMap, fmt, fs, fs::File, io::BufReader, path::PathBuf};
-
-use crate::cli;
+use std::{
+    cmp::Eq,
+    collections::HashMap,
+    fmt, fs,
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
 
 const CFG_FILENAME: &str = "otr.json";
 
@@ -85,6 +90,23 @@ pub fn otr_access_data<'clicfg>(
     ))
 }
 
+/// (Root) working directory. First, it is tried to get it from the command line
+/// arguments. If that is not successful, it is tried to get from the
+/// configuration file. The determination is only done once. The result is
+/// stored in a static variable.
+pub fn working_dir(in_dir: Option<&Path>) -> anyhow::Result<&'static PathBuf> {
+    static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
+    WORKING_DIR.get_or_try_init(|| {
+        if let Some(dir) = in_dir {
+            return Ok(dir.to_path_buf());
+        }
+        if let Some(dir) = &cfg_from_file()?.working_dir {
+            return Ok(dir.to_path_buf());
+        }
+        Err(anyhow!("working directory is not configured"))
+    })
+}
+
 /// Working sub directories (i.e., the sub directories for encoded, decoded, cut
 /// etc. videos). The directory paths are determined once only and stored in a
 /// static variable.
@@ -93,7 +115,7 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
         static WORKING_SUB_DIRS: OnceCell<HashMap<DirKind, PathBuf>> = OnceCell::new();
         WORKING_SUB_DIRS.get_or_try_init(|| {
             let mut kind_to_path: HashMap<DirKind, PathBuf> = HashMap::new();
-            let working_dir = working_dir()?;
+            let working_dir = working_dir(None)?;
             for dir_kind in [
                 DirKind::Root,
                 DirKind::Encoded,
@@ -157,22 +179,5 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
         let cfg = serde_json::from_reader(BufReader::new(file))
             .with_context(|| format!("could not read configuration file {:?}", path))?;
         Ok(cfg)
-    })
-}
-
-/// (Root) working directory. First, it is tried to get it from the command line
-/// arguments. If that is not successful, it is tried to get from the
-/// configuration file. The determination is only done once. The result is
-/// stored in a static variable.
-fn working_dir() -> anyhow::Result<&'static PathBuf> {
-    static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
-    WORKING_DIR.get_or_try_init(|| {
-        if let Some(dir) = &cli::args().working_dir {
-            return Ok(dir.to_path_buf());
-        }
-        if let Some(dir) = &cfg_from_file()?.working_dir {
-            return Ok(dir.to_path_buf());
-        }
-        Err(anyhow!("working directory is not configured"))
     })
 }

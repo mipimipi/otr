@@ -12,7 +12,13 @@ use video::Video;
 /// dedicated function (with appropriate result type) to be able to use the ?
 /// operator to propagate errors
 fn process_videos() -> anyhow::Result<()> {
-    // Get OTR user and password parameters from command line
+    // Initialize working directory with the path that was optionally submitted
+    // via command line. If no path was submitted, the directory is initialized
+    // with a path taken from the config file
+    let _ = video::working_dir(cli::args().working_dir.as_deref())?;
+
+    // Get OTR user and password parameters from command line (in case that was
+    // submitted)
     let (user, password) = if cli::is_decode_command() || cli::is_process_command() {
         cli::args().otr_access_data()
     } else {
@@ -23,7 +29,7 @@ fn process_videos() -> anyhow::Result<()> {
     // directories. They are returned as vector sorted by video key and
     // (descending) status.
     #[allow(clippy::manual_try_fold)]
-    video::collect()?
+    video::collect(&cli::args().videos())?
         // Create an iterator that delivers type &mut Video
         .iter_mut()
         // Remove duplicate entries of the same video with "lower" status.
