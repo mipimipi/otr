@@ -58,9 +58,8 @@ where
     }
 }
 
-/// Cut a video with a cut list derived from the --intervals command line
-/// option. in_path is the path of the decoded video file.
-/// out_path is the path of the cut video file.
+/// Cut a video with a cut list derived from an intervals string. in_path is the
+/// path of the decoded video file. out_path is the path of the cut video file.
 fn cut_with_intervals<P, Q, S>(in_path: P, out_path: Q, intervals: S) -> Result<(), CutError>
 where
     P: AsRef<Path>,

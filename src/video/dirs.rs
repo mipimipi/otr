@@ -4,6 +4,8 @@ use anyhow::{anyhow, Context};
 use once_cell::sync::OnceCell;
 use std::{cmp::Eq, collections::HashMap, fmt, fs, path::PathBuf};
 
+pub const DEFAULT_WORKING_DIR: &str = "OTR";
+
 const SUB_PATH_ROOT: &str = "";
 const SUB_PATH_ENCODED: &str = "Encoded";
 const SUB_PATH_DECODED: &str = "Decoded";

@@ -7,9 +7,10 @@ use anyhow::{anyhow, Context};
 use log::*;
 use std::{fs, path::Path};
 
-/// Collects video files from the submitted input paths and the working (sub)
-/// directories, creates the corresponding Video instances and returns them as
-/// vector, sorted by key (ascending) and status (descending).
+/// Collects video files either from the submitted input paths, or (if no path
+/// was submitted) from the working (sub) directories. The the corresponding
+/// Video instances are created and returned as vector, sorted by key
+/// (ascending) and status (descending).
 pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
@@ -23,8 +24,8 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
         warn!("{:?} is not a valid video file: Ignored", path)
     }
 
-    // If no videos have been submited via command line: collect videos from
-    // working (sub) directories
+    // If no videos have been submited: collect videos from working (sub)
+    // directories
     if videos.is_empty() {
         for dir_kind in [
             DirKind::Root,

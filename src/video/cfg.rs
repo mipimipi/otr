@@ -1,10 +1,13 @@
 use anyhow::{anyhow, Context};
+use log::*;
 use once_cell::sync::OnceCell;
 use std::{
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
 };
+
+use super::dirs::DEFAULT_WORKING_DIR;
 
 const CFG_FILENAME: &str = "otr.json";
 
@@ -16,10 +19,10 @@ const CFG_DEFAULT_DIR: &str = ".config";
 #[cfg(target_os = "macos")]
 const CFG_DEFAULT_DIR: &str = "Library/Application Support";
 
-/// Determine OTR access data (user, password). First, it is tried to retrieve that data from the
-/// command line arguments. If these do not contain the access data, they are
-/// tried to retrieved from the configuration file. The result is stored in a
-/// static variable. Thus, data is only determined once.
+/// Determine OTR access data (user, password). First, it is tried to retrieve
+/// that data from the command line arguments. If these do not contain the access
+/// data, they are tried to retrieved from the configuration file. The result is
+/// stored in a static variable. Thus, data is only determined once.
 pub fn otr_access_data<'a>(
     user: Option<&'a str>,
     password: Option<&'a str>,
@@ -48,20 +51,35 @@ pub fn otr_access_data<'a>(
     ))
 }
 
-/// (Root) working directory. First, it is tried to get it from the command line
-/// arguments. If that is not successful, it is tried to get from the
-/// configuration file. The determination is only done once. The result is
-/// stored in a static variable.
+/// (Root) working directory. It is set to dir provided dir is set. Otherwise, it
+/// is set to the working dir path which was retrieved from the configuration
+/// file. If there is no dir configured, the default workking dir is used, which
+/// is <VIDEO_DIR_OF_YOUR_OS>/OTR. The determination is only done once. The
+/// result is stored in a static variable.
 pub fn working_dir(dir: Option<&Path>) -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {
         if let Some(_dir) = dir {
             return Ok(_dir.to_path_buf());
         }
+
+        trace!("No working directory submitted: Try configuration file");
+
         if let Some(_dir) = &cfg_from_file()?.working_dir {
+            trace!("Working directory retrieved from configuration file");
             return Ok(_dir.to_path_buf());
         }
-        Err(anyhow!("working directory is not configured"))
+
+        trace!("No working directory configured: Try default directory");
+
+        if let Some(video_dir) = dirs::video_dir() {
+            trace!("Video directory determined: Assemble default working directory");
+            return Ok(video_dir.join(DEFAULT_WORKING_DIR));
+        }
+
+        debug!("Video directory could not be determined");
+
+        Err(anyhow!("Working directory could not be determined"))
     })
 }
 
@@ -79,9 +97,10 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
     static CFG_FROM_FILE: OnceCell<CfgFromFile> = OnceCell::new();
     CFG_FROM_FILE.get_or_try_init(|| {
         // Assemble path for config file. Sequence:
-        //   (1) XDG config dir (if that's available)
-        //   (2) XDG home dir (if that's available) joined with default
-        //       (relative) configuration path
+        //   (1) Standard configuration directory of the OS (if that's available)
+        //   (2) Home directory of the OS (if that's available) joined with
+        //       the default (relative) configuration path (constants defined at
+        //       beginning of this file)
         let path = if let Some(cfg_dir) = dirs::config_dir() {
             cfg_dir.join(CFG_FILENAME)
         } else if let Some(home_dir) = dirs::home_dir() {

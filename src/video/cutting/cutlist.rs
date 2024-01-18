@@ -257,7 +257,7 @@ fn item_attr_duration(kind: &Kind) -> String {
 }
 
 lazy_static! {
-    /// Reg exp for the intervals string that can be specified on command line
+    /// Reg exp for the intervals string
     static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|time):((\[[^,]+,[^,]+\])+)$"#).unwrap();
 }
 
@@ -270,8 +270,8 @@ pub struct CutList {
 impl FromStr for CutList {
     type Err = anyhow::Error;
 
-    /// Creates a cut list from an intervals string that was specified on command
-    /// line, i.e. "frames:[...]" or "[time:[...]"
+    /// Creates a cut list from an intervals string, i.e. "frames:[...]" or
+    /// "[time:[...]"
     fn from_str(intervals: &str) -> Result<Self, Self::Err> {
         if !RE_INTERVALS.is_match(intervals) {
             return Err(anyhow!("'{}' is not a valid intervals string", intervals));

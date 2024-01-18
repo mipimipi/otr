@@ -17,8 +17,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Initialize working directory either with dir (if it is Some(...)) or from
-/// the configuration file
+/// Initialize working directory either with dir (if it is set) or from the
+/// configuration file
 pub fn init_working_dir(dir: Option<&Path>) -> anyhow::Result<()> {
     let _ = cfg::working_dir(dir)?;
     Ok(())
@@ -99,24 +99,24 @@ pub struct Video {
     e: Option<anyhow::Error>,
 }
 
-/// Support conversion of a &PathBuf into a Video. Usage of From trait is not
+// Regular expressions to analyze video file names
+lazy_static! {
+    // Analyze the name of a (potential) video file that is not cut -
+    // i.e., either encoded or decoded.
+    static ref RE_UNCUT_VIDEO: Regex =
+        Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.[^\.]+(?P<fmt>\.(HQ|HD))?(?P<ext>\.[^\.]+)(?P<encext>\.otrkey)?$").unwrap();
+    // Analyze the name of a (potential) video file that is cut
+    static ref RE_CUT_VIDEO: Regex =
+        Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.(.*cut\..+)$").unwrap();
+}
+
+/// Support conversion of a &Path into a Video. Usage of From trait is not
 /// possible since not all paths represent OTR videos and thus, an error can
 /// occur
 impl TryFrom<&Path> for Video {
     type Error = anyhow::Error;
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        // Regular vexpressions to analyze video file names
-        lazy_static! {
-            // Analyze the name of a (potential) video file that is not cut -
-            // i.e., either encoded or decoded.
-            static ref RE_UNCUT_VIDEO: Regex =
-                Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.[^\.]+(?P<fmt>\.(HQ|HD))?(?P<ext>\.[^\.]+)(?P<encext>\.otrkey)?$").unwrap();
-            // Analyze the name of a (potential) video file that is cut
-            static ref RE_CUT_VIDEO: Regex =
-                Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.(.*cut\..+)$").unwrap();
-        }
-
         if let Some(file_name) = path.file_name() {
             if let Some(file_name_str) = file_name.to_str() {
                 // Check if path represents a cut video file (the check for cut
