@@ -66,11 +66,11 @@ impl Display for Kind {
 }
 
 /// Cut list access type
-pub enum AccessType<'cli> {
-    Auto,
-    Direct(&'cli str),
-    File(&'cli Path),
-    ID(u64),
+pub enum AccessType<'a> {
+    Auto,            // retrieve cut lists from provider and select one automatically
+    Direct(&'a str), // direct access to cut list (as string consisting of intervals)
+    File(&'a Path),  // retrieve cut list from file
+    ID(u64),         // retrieve cutlist from provider by ID
 }
 
 /// Header data to retrieve cut lists from a provider

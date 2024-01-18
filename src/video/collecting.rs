@@ -1,4 +1,8 @@
-use super::{cfg, cfg::DirKind, Video};
+use super::{
+    dirs::{self, DirKind},
+    Video,
+};
+
 use anyhow::{anyhow, Context};
 use log::*;
 use std::{fs, path::Path};
@@ -47,7 +51,7 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
 /// Collect videos from the directory that is assigned to kind dir_kind
 fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
-    let dir = cfg::working_sub_dir(dir_kind)
+    let dir = dirs::working_sub_dir(dir_kind)
         .context(format!("Could determine '{:?}' directory", &dir_kind))?;
 
     if !dir.is_dir() {

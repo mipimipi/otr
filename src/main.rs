@@ -13,9 +13,8 @@ use video::Video;
 /// operator to propagate errors
 fn process_videos() -> anyhow::Result<()> {
     // Initialize working directory with the path that was optionally submitted
-    // via command line. If no path was submitted, the directory is initialized
-    // with a path taken from the config file
-    let _ = video::working_dir(cli::args().working_dir.as_deref())?;
+    // via command line
+    video::init_working_dir(cli::args().working_dir.as_deref())?;
 
     // Get OTR user and password parameters from command line (in case that was
     // submitted)

@@ -1,9 +1,6 @@
 use anyhow::{anyhow, Context};
 use once_cell::sync::OnceCell;
 use std::{
-    cmp::Eq,
-    collections::HashMap,
-    fmt, fs,
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
@@ -19,53 +16,14 @@ const CFG_DEFAULT_DIR: &str = ".config";
 #[cfg(target_os = "macos")]
 const CFG_DEFAULT_DIR: &str = "Library/Application Support";
 
-const SUB_PATH_ROOT: &str = "";
-const SUB_PATH_ENCODED: &str = "Encoded";
-const SUB_PATH_DECODED: &str = "Decoded";
-const SUB_PATH_CUT: &str = "Cut";
-const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
-
-/// Directory types
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub enum DirKind {
-    Root,
-    Encoded,
-    Decoded,
-    Cut,
-    Archive,
-}
-impl fmt::Display for DirKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            DirKind::Root => write!(f, "Root"),
-            DirKind::Encoded => write!(f, "Encoded"),
-            DirKind::Decoded => write!(f, "Decoded"),
-            DirKind::Cut => write!(f, "Cut"),
-            DirKind::Archive => write!(f, "Archive"),
-        }
-    }
-}
-impl DirKind {
-    /// Relative path for each directory kind
-    pub fn relative_path<'a>(&self) -> &'a str {
-        match self {
-            DirKind::Root => SUB_PATH_ROOT,
-            DirKind::Encoded => SUB_PATH_ENCODED,
-            DirKind::Decoded => SUB_PATH_DECODED,
-            DirKind::Cut => SUB_PATH_CUT,
-            DirKind::Archive => SUB_PATH_ARCHIVE,
-        }
-    }
-}
-
 /// Determine OTR access data (user, password). First, it is tried to retrieve that data from the
 /// command line arguments. If these do not contain the access data, they are
 /// tried to retrieved from the configuration file. The result is stored in a
 /// static variable. Thus, data is only determined once.
-pub fn otr_access_data<'clicfg>(
-    user: Option<&'clicfg str>,
-    password: Option<&'clicfg str>,
-) -> anyhow::Result<(&'clicfg str, &'clicfg str)> {
+pub fn otr_access_data<'a>(
+    user: Option<&'a str>,
+    password: Option<&'a str>,
+) -> anyhow::Result<(&'a str, &'a str)> {
     Ok((
         if let Some(_user) = user {
             _user
@@ -94,58 +52,17 @@ pub fn otr_access_data<'clicfg>(
 /// arguments. If that is not successful, it is tried to get from the
 /// configuration file. The determination is only done once. The result is
 /// stored in a static variable.
-pub fn working_dir(in_dir: Option<&Path>) -> anyhow::Result<&'static PathBuf> {
+pub fn working_dir(dir: Option<&Path>) -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {
-        if let Some(dir) = in_dir {
-            return Ok(dir.to_path_buf());
+        if let Some(_dir) = dir {
+            return Ok(_dir.to_path_buf());
         }
-        if let Some(dir) = &cfg_from_file()?.working_dir {
-            return Ok(dir.to_path_buf());
+        if let Some(_dir) = &cfg_from_file()?.working_dir {
+            return Ok(_dir.to_path_buf());
         }
         Err(anyhow!("working directory is not configured"))
     })
-}
-
-/// Working sub directories (i.e., the sub directories for encoded, decoded, cut
-/// etc. videos). The directory paths are determined once only and stored in a
-/// static variable.
-pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
-    fn working_sub_dir_create() -> anyhow::Result<&'static HashMap<DirKind, PathBuf>> {
-        static WORKING_SUB_DIRS: OnceCell<HashMap<DirKind, PathBuf>> = OnceCell::new();
-        WORKING_SUB_DIRS.get_or_try_init(|| {
-            let mut kind_to_path: HashMap<DirKind, PathBuf> = HashMap::new();
-            let working_dir = working_dir(None)?;
-            for dir_kind in [
-                DirKind::Root,
-                DirKind::Encoded,
-                DirKind::Decoded,
-                DirKind::Cut,
-                DirKind::Archive,
-            ] {
-                let sub_dir = working_dir.join(dir_kind.relative_path());
-                fs::create_dir_all(&sub_dir)
-                    .with_context(|| format!("could not create sub directory {:?}", sub_dir))?;
-                kind_to_path.insert(dir_kind, sub_dir);
-            }
-            Ok(kind_to_path)
-        })
-    }
-
-    let dirs = working_sub_dir_create().with_context(|| {
-        format!(
-            "could not determine sub directory of kind {:?}",
-            kind.to_string()
-        )
-    })?;
-
-    if let Some(path) = dirs.get(kind) {
-        return Ok(path);
-    }
-    Err(anyhow!(
-        "sub directory of kind {:?} not found",
-        kind.to_string()
-    ))
 }
 
 /// Content of the configuration file

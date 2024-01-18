@@ -1,5 +1,9 @@
-use crate::video::cutlist::{self, CutList, Kind};
+mod cutlist;
+
+pub use cutlist::AccessType as CutlistAccessType;
+
 use anyhow::{anyhow, Context};
+use cutlist::{CutList, Kind};
 use log::*;
 use std::{
     error::Error,

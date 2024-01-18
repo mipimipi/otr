@@ -1,11 +1,14 @@
 mod cfg;
 mod collecting;
-mod cutlist;
 mod cutting;
 mod decoding;
+mod dirs;
+
+pub use collecting::collect;
+pub use cutting::CutlistAccessType;
 
 use anyhow::anyhow;
-use cfg::DirKind;
+use dirs::DirKind;
 use lazy_static::lazy_static;
 use log::*;
 use regex::Regex;
@@ -14,9 +17,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub use cfg::working_dir;
-pub use collecting::collect;
-pub use cutlist::AccessType as CutlistAccessType;
+/// Initialize working directory either with dir (if it is Some(...)) or from
+/// the configuration file
+pub fn init_working_dir(dir: Option<&Path>) -> anyhow::Result<()> {
+    let _ = cfg::working_dir(dir)?;
+    Ok(())
+}
 
 /// Key of an OTR video. That's the left part of the file name ending with
 /// "_TVOON_DE". I.e., key of
@@ -232,7 +238,7 @@ impl Video {
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly.
     /// The real thing is done by _cut, the private counterpart function.
-    pub fn cut(&mut self, cutlist_access: cutlist::AccessType) {
+    pub fn cut(&mut self, cutlist_access: CutlistAccessType) {
         if let Err(err) = self._cut(cutlist_access) {
             self.e = Some(err)
         }
@@ -258,7 +264,7 @@ impl Video {
                 .unwrap()
                 .parent()
                 .unwrap()
-                .join(cfg::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
+                .join(dirs::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
                 .join(self.file_name())
                 .with_extension("")),
             Status::Decoded => Ok(self
@@ -267,7 +273,7 @@ impl Video {
                 .unwrap()
                 .parent()
                 .unwrap()
-                .join(cfg::working_sub_dir(&(Status::Cut).as_dir_kind())?)
+                .join(dirs::working_sub_dir(&(Status::Cut).as_dir_kind())?)
                 .join(self.file_name())
                 .with_extension(
                     "cut".to_string() + "." + self.p.extension().unwrap().to_str().unwrap(),
@@ -292,7 +298,7 @@ impl Video {
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly. Private cut function which is
     /// wrapped by its public counterpart.
-    fn _cut(&mut self, cutlist_access: cutlist::AccessType) -> anyhow::Result<()> {
+    fn _cut(&mut self, cutlist_access: CutlistAccessType) -> anyhow::Result<()> {
         // nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
             return Ok(());
@@ -320,7 +326,7 @@ impl Video {
         // archive directory. Otherwise return with error
         if let Err(err) = fs::rename(
             &self.p,
-            cfg::working_sub_dir(&cfg::DirKind::Archive)
+            dirs::working_sub_dir(&DirKind::Archive)
                 .unwrap()
                 .join(self.file_name()),
         ) {
@@ -372,7 +378,7 @@ impl Video {
         // simply unwrap the result
         let source_dir = self.p.parent().unwrap();
 
-        let target_dir = cfg::working_sub_dir(&(self.status()).as_dir_kind())?;
+        let target_dir = dirs::working_sub_dir(&(self.status()).as_dir_kind())?;
         let target_path = target_dir.join(self.file_name());
 
         // Nothing to do if video is already in correct directory
