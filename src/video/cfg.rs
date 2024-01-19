@@ -1,13 +1,10 @@
 use anyhow::{anyhow, Context};
-use log::*;
 use once_cell::sync::OnceCell;
 use std::{
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
 };
-
-use super::dirs::DEFAULT_WORKING_DIR;
 
 /// Name of configuration file
 const CFG_FILENAME: &str = "otr.json";
@@ -44,36 +41,9 @@ pub fn otr_access_data<'a>(
     ))
 }
 
-/// (Root) working directory. It is set to dir provided dir is set. Otherwise, it
-/// is set to the working dir path which was retrieved from the configuration
-/// file. If there is no dir configured, the default workking dir is used, which
-/// is <VIDEO_DIR_OF_YOUR_OS>/OTR. The determination is only done once. The
-/// result is stored in a static variable.
-pub fn working_dir(dir: Option<&Path>) -> anyhow::Result<&'static PathBuf> {
-    static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
-    WORKING_DIR.get_or_try_init(|| {
-        if let Some(_dir) = dir {
-            return Ok(_dir.to_path_buf());
-        }
-
-        trace!("No working directory submitted: Try configuration file");
-
-        if let Some(_dir) = &cfg_from_file()?.working_dir {
-            trace!("Working directory retrieved from configuration file");
-            return Ok(_dir.to_path_buf());
-        }
-
-        trace!("No working directory configured: Try default directory");
-
-        if let Some(video_dir) = dirs::video_dir() {
-            trace!("Video directory determined: Assemble default working directory");
-            return Ok(video_dir.join(DEFAULT_WORKING_DIR));
-        }
-
-        debug!("Video directory could not be determined");
-
-        Err(anyhow!("Working directory could not be determined"))
-    })
+/// Return working directory from configuration file
+pub fn working_dir() -> anyhow::Result<Option<&'static Path>> {
+    Ok(cfg_from_file()?.working_dir.as_deref())
 }
 
 /// Content of the configuration file

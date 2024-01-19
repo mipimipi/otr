@@ -12,10 +12,6 @@ use video::Video;
 /// dedicated function (with appropriate result type) to be able to use the ?
 /// operator to propagate errors
 fn process_videos() -> anyhow::Result<()> {
-    // Initialize working directory with the path that was optionally submitted
-    // via command line
-    video::init_working_dir(cli::args().working_dir.as_deref())?;
-
     // Get OTR user and password parameters from command line (in case that was
     // submitted)
     let (user, password) = if cli::is_decode_command() || cli::is_process_command() {

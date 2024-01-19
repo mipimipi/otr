@@ -17,13 +17,6 @@ pub struct Args {
     pub command: Commands,
     #[arg(
         global = true,
-        short = 'd',
-        long = "directory",
-        help = "Working directory (overwrites configuration file content)"
-    )]
-    pub working_dir: Option<PathBuf>,
-    #[arg(
-        global = true,
         short = 'v',
         long = "verbose",
 	action = clap::ArgAction::Count,

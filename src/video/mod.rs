@@ -17,13 +17,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Initialize working directory either with dir (if it is set) or from the
-/// configuration file
-pub fn init_working_dir(dir: Option<&Path>) -> anyhow::Result<()> {
-    let _ = cfg::working_dir(dir)?;
-    Ok(())
-}
-
 /// Key of an OTR video. That's the left part of the file name ending with
 /// "_TVOON_DE". I.e., key of
 /// Blue_in_the_Face_-_Alles_blauer_Dunst_22.01.08_22-00_one_85_TVOON_DE.mpg.HD.avi

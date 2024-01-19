@@ -1,6 +1,7 @@
 use super::cfg;
 
 use anyhow::{anyhow, Context};
+use log::*;
 use once_cell::sync::OnceCell;
 use std::{cmp::Eq, collections::HashMap, fmt, fs, path::PathBuf};
 
@@ -53,7 +54,7 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
         static WORKING_SUB_DIRS: OnceCell<HashMap<DirKind, PathBuf>> = OnceCell::new();
         WORKING_SUB_DIRS.get_or_try_init(|| {
             let mut kind_to_path: HashMap<DirKind, PathBuf> = HashMap::new();
-            let working_dir = cfg::working_dir(None)?;
+            let working_dir = working_dir()?;
             for dir_kind in [
                 DirKind::Root,
                 DirKind::Encoded,
@@ -84,4 +85,29 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
         "sub directory of kind {:?} not found",
         kind.to_string()
     ))
+}
+
+/// (Root) working directory. It is set to the working dir path which was
+/// retrieved from the configuration. If there is no dir configured, the default
+/// working dir is used, which is <VIDEO_DIR_OF_YOUR_OS>/OTR. The determination
+/// is only done once. The result is stored in a static variable.
+pub fn working_dir() -> anyhow::Result<&'static PathBuf> {
+    static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
+    WORKING_DIR.get_or_try_init(|| {
+        if let Some(_dir) = cfg::working_dir()? {
+            trace!("Working directory retrieved from configuration file");
+            return Ok(_dir.to_path_buf());
+        }
+
+        trace!("No working directory configured: Try default directory");
+
+        if let Some(video_dir) = dirs::video_dir() {
+            trace!("Video directory determined: Assemble default working directory");
+            return Ok(video_dir.join(DEFAULT_WORKING_DIR));
+        }
+
+        debug!("Video directory could not be determined");
+
+        Err(anyhow!("Working directory could not be determined"))
+    })
 }
