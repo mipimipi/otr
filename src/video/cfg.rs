@@ -9,15 +9,8 @@ use std::{
 
 use super::dirs::DEFAULT_WORKING_DIR;
 
+/// Name of configuration file
 const CFG_FILENAME: &str = "otr.json";
-
-/// Set the default configuration directory depending on the OS. Currently only
-/// macOS and Linux are supported. Thus, if compilation is done on a different
-/// OS, an error is thrown
-#[cfg(target_os = "linux")]
-const CFG_DEFAULT_DIR: &str = ".config";
-#[cfg(target_os = "macos")]
-const CFG_DEFAULT_DIR: &str = "Library/Application Support";
 
 /// Determine OTR access data (user, password). First, it is tried to retrieve
 /// that data from the command line arguments. If these do not contain the access
@@ -96,17 +89,14 @@ struct CfgFromFile {
 fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
     static CFG_FROM_FILE: OnceCell<CfgFromFile> = OnceCell::new();
     CFG_FROM_FILE.get_or_try_init(|| {
-        // Assemble path for config file. Sequence:
-        //   (1) Standard configuration directory of the OS (if that's available)
-        //   (2) Home directory of the OS (if that's available) joined with
-        //       the default (relative) configuration path (constants defined at
-        //       beginning of this file)
+        // Assemble path for config file: Get standard configuration directory of
+        // the OS (if that's available) and append the otr config file name
         let path = if let Some(cfg_dir) = dirs::config_dir() {
             cfg_dir.join(CFG_FILENAME)
-        } else if let Some(home_dir) = dirs::home_dir() {
-            home_dir.join(CFG_DEFAULT_DIR).join(CFG_FILENAME)
         } else {
-            return Err(anyhow!("could not determine path of configuration file"));
+            return Err(anyhow!(
+                "Could not determine path of configuration directory for this OS"
+            ));
         };
 
         // Parse config file
