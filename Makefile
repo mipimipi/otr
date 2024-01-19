@@ -14,7 +14,7 @@ endif
 
 # Build executable 
 all:
-	cargo build --release --all-features $(BUILD_FLAGS)
+	cargo build --release $(BUILD_FLAGS)
 
 .PHONY: all install lint release
 
