@@ -28,6 +28,13 @@ pub struct Args {
         switched on"}
     )]
     pub verbose: u8,
+    #[arg(
+        global = true,
+        short = 'q',
+        long = "quiet",
+        help = "Switch off output completely, even error messages will not be displayed"
+    )]
+    pub quiet: bool,
 }
 
 impl Args {

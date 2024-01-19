@@ -81,6 +81,7 @@ fn main() {
         .module(module_path!())
         .show_module_names(false)
         .color(ColorChoice::Auto)
+        .quiet(cli::args().quiet)
         .verbosity(match cli::args().verbose {
             0 => LogLevelNum::Error,
             1 => LogLevelNum::Info,
