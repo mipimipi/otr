@@ -33,6 +33,9 @@ const CUTLIST_ITEM_TIME_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
+/// Alias for cut list rating
+pub type Rating = u8;
+
 /// Type of cut list intervals - i.e., whether they are based on frame numbers or
 /// time
 #[derive(Clone, Default, Eq, Hash, PartialEq)]
@@ -109,7 +112,12 @@ impl ProviderHeader {
 
 /// Retrieves the headers of cut lists for a video from a provider. If no cut
 /// list exists, an empty array but no error is returned.
-pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHeader>> {
+/// file_name is the name of the video file. min_rating specifies the minimum
+/// rating a cutlist must have to be accepted
+pub fn headers_from_provider(
+    file_name: &str,
+    min_rating: Option<Rating>,
+) -> anyhow::Result<Vec<ProviderHeader>> {
     #[derive(Debug, Deserialize)]
     struct RawHeaders {
         #[serde(rename = "cutlist")]
@@ -119,6 +127,8 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
     struct RawHeader {
         id: u64,
         rating: String,
+        #[serde(rename = "ratingbyauthor")]
+        rating_by_author: String,
         errors: String,
     }
 
@@ -173,12 +183,27 @@ pub fn headers_from_provider(file_name: &str) -> anyhow::Result<Vec<ProviderHead
             ..Default::default()
         };
 
-        // Parse rating
-        if let Ok(rating) = raw_header.rating.parse::<f64>() {
-            header.rating = rating;
+        // Parse rating. First try general rating. If that does not exist, try
+        // the rating by the author of the cut list
+        if let Ok(_rating) = raw_header.rating.parse::<f64>() {
+            header.rating = _rating;
+        } else if let Ok(_rating) = raw_header.rating_by_author.parse::<f64>() {
+            header.rating = _rating;
         }
 
-        headers.push(header);
+        // Check if rating is good enough
+        if let Some(_rating) = min_rating {
+            if header.rating < _rating as f64 {
+                info!(
+                    "Rating of cut list {} for {} is too low",
+                    header.id, file_name
+                );
+            } else {
+                headers.push(header);
+            }
+        } else {
+            headers.push(header);
+        }
     }
 
     headers.sort();

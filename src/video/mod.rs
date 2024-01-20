@@ -6,6 +6,7 @@ mod dirs;
 
 pub use collecting::collect;
 pub use cutting::CutlistAccessType;
+pub use cutting::CutlistRating;
 
 use anyhow::anyhow;
 use dirs::DirKind;
@@ -228,11 +229,18 @@ impl Video {
         self.status() == Status::Cut
     }
 
-    /// Cut a decoded Video. The video status and path is updated accordingly. The
-    /// video file is moved accordingly.
-    /// The real thing is done by _cut, the private counterpart function.
-    pub fn cut(&mut self, cutlist_access: CutlistAccessType) {
-        if let Err(err) = self._cut(cutlist_access) {
+    /// Cut a decoded Video. The video status and path is updated accordingly.
+    /// The video file is moved accordingly. The real thing is done by _cut, the
+    /// private counterpart function.
+    /// cutlist_access specified how to (try to) get an appropriate cut list,
+    /// min_cutlist_rating specifies the minimum rating a cutlist must have when
+    /// automatically selected from the cut list provider
+    pub fn cut(
+        &mut self,
+        cutlist_access: CutlistAccessType,
+        min_cutlist_rating: Option<CutlistRating>,
+    ) {
+        if let Err(err) = self._cut(cutlist_access, min_cutlist_rating) {
             self.e = Some(err)
         }
     }
@@ -291,7 +299,14 @@ impl Video {
     /// Cut a decoded Video. The video status and path is updated accordingly. The
     /// video file is moved accordingly. Private cut function which is
     /// wrapped by its public counterpart.
-    fn _cut(&mut self, cutlist_access: CutlistAccessType) -> anyhow::Result<()> {
+    /// cutlist_access specified how to (try to) get an appropriate cut list,
+    /// min_cutlist_rating specifies the minimum rating a cutlist must have when
+    /// automatically selected from the cut list provider
+    fn _cut(
+        &mut self,
+        cutlist_access: CutlistAccessType,
+        min_cutlist_rating: Option<CutlistRating>,
+    ) -> anyhow::Result<()> {
         // nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
             return Ok(());
@@ -300,7 +315,8 @@ impl Video {
         info!("Cutting {:?} ...", self.file_name());
 
         // Execute cutting of video
-        if let Err(err) = cutting::cut(&self, self.next_path()?, cutlist_access) {
+        if let Err(err) = cutting::cut(&self, self.next_path()?, cutlist_access, min_cutlist_rating)
+        {
             return match err {
                 cutting::CutError::NoCutlist => {
                     Err(anyhow!("No cutlist exists for {:?}", self.file_name()))

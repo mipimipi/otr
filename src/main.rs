@@ -55,7 +55,10 @@ fn process_videos() -> anyhow::Result<()> {
         .into_par_iter()
         .map(|video| {
             if cli::is_cut_command() || cli::is_process_command() {
-                video.cut(cli::args().cutlist_access_type());
+                video.cut(
+                    cli::args().cutlist_access_type(),
+                    cli::args().min_cutlist_rating(),
+                );
             }
             video
         })

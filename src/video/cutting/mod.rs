@@ -1,6 +1,7 @@
 mod cutlist;
 
 pub use cutlist::AccessType as CutlistAccessType;
+pub use cutlist::Rating as CutlistRating;
 
 use anyhow::{anyhow, Context};
 use cutlist::{CutList, Kind};
@@ -41,20 +42,28 @@ impl From<anyhow::Error> for CutError {
     }
 }
 
-/// Cut a decoded video file. in_path is the path of the decoded video file.
-/// out_path is the path of the cut video file.
-pub fn cut<P, Q>(in_path: P, out_path: Q, cl_access: cutlist::AccessType) -> Result<(), CutError>
+/// Cut a decoded video file.
+/// in_path is the path of the decoded video file. out_path is the path of the
+/// cut video file. cutlist_access specified how to (try to) get an appropriate
+/// cut list. min_cutlist_rating specifies the minimum rating a cutlist must have
+/// when automatically selected from the cut list provider
+pub fn cut<P, Q>(
+    in_path: P,
+    out_path: Q,
+    cutlist_access: CutlistAccessType,
+    min_cutlist_rating: Option<CutlistRating>,
+) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
     // Call specialized cut functions based on the cut list access type that was
     // submitted
-    match cl_access {
+    match cutlist_access {
         cutlist::AccessType::Direct(intervals) => cut_with_intervals(in_path, out_path, intervals),
         cutlist::AccessType::File(file) => cut_with_cutlist_from_file(in_path, out_path, file),
         cutlist::AccessType::ID(id) => cut_with_cutlist_from_provider_by_id(in_path, out_path, id),
-        _ => cut_with_cutlist_from_provider_auto_select(in_path, out_path),
+        _ => cut_with_cutlist_from_provider_auto_select(in_path, out_path, min_cutlist_rating),
     }
 }
 
@@ -165,9 +174,15 @@ where
 }
 
 /// Cut a video with a cut list retrieved from a provider by video file name and
-/// selected automatically. in_path is the path of the decoded video file.
-/// out_path is the path of the cut video file.
-fn cut_with_cutlist_from_provider_auto_select<P, Q>(in_path: P, out_path: Q) -> Result<(), CutError>
+/// selected automatically.
+/// in_path is the path of the decoded video file.  out_path is the path of the
+/// cut video file. min_cutlist_rating specifies the minimum rating a cutlist
+/// must have to be accepted
+fn cut_with_cutlist_from_provider_auto_select<P, Q>(
+    in_path: P,
+    out_path: Q,
+    min_cutlist_rating: Option<CutlistRating>,
+) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -175,12 +190,13 @@ where
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
 
     // Retrieve cut list headers from provider
-    let headers: Vec<cutlist::ProviderHeader> = match cutlist::headers_from_provider(file_name)
-        .context(format!("Could not retrieve cut lists for {:?}", file_name))
-    {
-        Ok(hdrs) => hdrs,
-        _ => return Err(CutError::NoCutlist),
-    };
+    let headers: Vec<cutlist::ProviderHeader> =
+        match cutlist::headers_from_provider(file_name, min_cutlist_rating)
+            .context(format!("Could not retrieve cut lists for {:?}", file_name))
+        {
+            Ok(hdrs) => hdrs,
+            _ => return Err(CutError::NoCutlist),
+        };
 
     // Retrieve cut lists from provider and cut video
     let mut is_cut = false;

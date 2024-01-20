@@ -1,4 +1,4 @@
-use crate::video::CutlistAccessType;
+use crate::video::{CutlistAccessType, CutlistRating};
 use clap::{Parser, Subcommand};
 use indoc::indoc;
 use once_cell::sync::OnceCell;
@@ -67,6 +67,17 @@ impl Args {
         }
     }
 
+    /// Returns minimum cutlist rating
+    pub fn min_cutlist_rating(&self) -> Option<CutlistRating> {
+        match &self.command {
+            Commands::Cut { rating, .. } => *rating,
+            Commands::Decode { .. } => {
+                panic!("Sub command 'decode' does not have cut list rating as parameter")
+            }
+            Commands::Process { rating, .. } => *rating,
+        }
+    }
+
     /// Returns OTR access data (user, password).
     /// Note: Calling this function does only make sense for some sub commands.
     ///       If it is called when otr is called with a sub command that does
@@ -119,7 +130,7 @@ pub enum Commands {
     Cut {
         #[arg(
             long = "cutlist",
-            value_name = "INTERVALS_STRING",
+            value_name = "intervals_string",
 	    group = "input",
             help = indoc! {"
             Cut list as sequence of intervals, either based on time or frame numbers. The
@@ -135,7 +146,7 @@ pub enum Commands {
         intervals: Option<String>,
         #[arg(
             long = "cutlist-file",
-            value_name = "CUTLIST_FILE_PATH",
+            value_name = "path_of_cut_list_file",
 	    group = "input",
             help = indoc! {"
             Path of a cut list file. The content of the file must have the INI format of
@@ -144,11 +155,18 @@ pub enum Commands {
         file: Option<PathBuf>,
         #[arg(
             long = "cutlist-id",
-            value_name = "CUTLIST_ID",
+            value_name = "cut_list_id",
             group = "input",
             help = "Identifier of a cut list at cutlist.at"
         )]
         id: Option<u64>,
+        #[arg(
+            long = "min-rating",
+            value_name = "min_cut_list_rating",
+            group = "input",
+            help = "Minímum rating a cut list must have for being used to cut the video"
+        )]
+        rating: Option<CutlistRating>,
         #[arg(name = "video", help = "Path of video to be cut")]
         video: PathBuf,
     },
@@ -199,6 +217,12 @@ pub enum Commands {
             help = "Password for Online TV Recorder (overwrites configuration file content)"
         )]
         password: Option<String>,
+        #[arg(
+            long = "min-rating",
+            value_name = "min_cut_list_rating",
+            help = "Minímum rating a cut list must have for being used to cut the video"
+        )]
+        rating: Option<CutlistRating>,
         videos: Vec<PathBuf>,
     },
 }
