@@ -316,16 +316,11 @@ impl Video {
         if let Err(err) = cutting::cut(&self, self.next_path()?, cutlist_access, min_cutlist_rating)
         {
             return match err {
-                cutting::CutError::NoCutlist => {
-                    Err(anyhow!("No cutlist exists for {:?}", self.file_name()))
+                cutting::CutError::NoCutlist => Err(anyhow!("No cut list exists for video")),
+                cutting::CutError::Any(err) => Err(err.context("Could not cut video")),
+                cutting::CutError::Default => {
+                    Err(anyhow!("Could not cut video for an unknown reason"))
                 }
-                cutting::CutError::Any(err) => {
-                    Err(err.context(format!("Could not cut {:?}", self.file_name())))
-                }
-                cutting::CutError::Default => Err(anyhow!(
-                    "Could not cut {:?} for an unknown reason",
-                    self.file_name()
-                )),
             };
         }
 
@@ -339,10 +334,8 @@ impl Video {
         ) {
             error!(
                 "{:?}",
-                anyhow!(err).context(format!(
-                    "Could not move {:?} to archive directory after successful cutting",
-                    self.file_name()
-                ))
+                anyhow!(err)
+                    .context("Could not move video to archive directory after successful cutting")
             );
         }
 

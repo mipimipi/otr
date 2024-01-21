@@ -109,12 +109,7 @@ where
     }
 
     // Remove encoded video file
-    remove_file(&in_path).with_context(|| {
-        format!(
-            "Could not remove {:?} after successful decoding",
-            in_path.as_ref().file_name().unwrap().to_str().unwrap()
-        )
-    })?;
+    remove_file(&in_path).with_context(|| "Could not delete video after successful decoding")?;
 
     Ok(())
 }

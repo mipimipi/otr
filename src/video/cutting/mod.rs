@@ -80,7 +80,6 @@ where
         in_path.as_ref().to_str().unwrap()
     );
 
-    let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
     let cutlist = CutList::from_str(intervals.as_ref())?;
 
     cutlist
@@ -88,7 +87,7 @@ where
         .context(format!("{} let to an invalid cut list", intervals))?;
 
     match cut_with_mkvmerge(&in_path, &out_path, &cutlist)
-        .context(format!("Could not cut {:?} with {}", file_name, intervals))
+        .context(format!("Could not cut video with {}", intervals))
     {
         Err(err) => Err(CutError::Any(err)),
         _ => Ok(()),
@@ -113,7 +112,6 @@ where
         cutlist_path.as_ref().to_str().unwrap()
     );
 
-    let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
     let cutlist = CutList::try_from(cutlist_path.as_ref())?;
 
     cutlist.validate().context(format!(
@@ -122,8 +120,7 @@ where
     ))?;
 
     match cut_with_mkvmerge(&in_path, &out_path, &cutlist).context(format!(
-        "Could not cut {:?} with cut list from '{}'",
-        file_name,
+        "Could not cut video with cut list from '{}'",
         cutlist_path.as_ref().display()
     )) {
         Err(err) => Err(CutError::Any(err)),
@@ -149,27 +146,23 @@ where
         id
     );
 
-    let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
-
     // Retrieve cut lists from provider and cut video
     match CutList::try_from(id) {
         Ok(cutlist) => {
             cutlist
                 .validate()
-                .context(format!("Cut list {} for {:?} is not valid", id, file_name))?;
+                .context(format!("Cut list {} is not valid", id))?;
 
             match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
                 Ok(_) => Ok(()),
-                Err(err) => Err(CutError::Any(anyhow!(err).context(format!(
-                    "Could not cut {:?} with cut list {}",
-                    file_name, id
-                )))),
+                Err(err) => Err(CutError::Any(
+                    anyhow!(err).context(format!("Could not cut video with cut list {}", id)),
+                )),
             }
         }
-        Err(err) => Err(CutError::Any(anyhow!(err).context(format!(
-            "Could not retrieve cut list ID={} for {:?}",
-            id, file_name
-        )))),
+        Err(err) => Err(CutError::Any(
+            anyhow!(err).context(format!("Could not retrieve cut list ID={}", id)),
+        )),
     }
 }
 
@@ -192,7 +185,7 @@ where
     // Retrieve cut list headers from provider
     let headers: Vec<cutlist::ProviderHeader> =
         match cutlist::headers_from_provider(file_name, min_cutlist_rating)
-            .context(format!("Could not retrieve cut lists for {:?}", file_name))
+            .context("Could not retrieve cut lists")
         {
             Ok(hdrs) => hdrs,
             _ => return Err(CutError::NoCutlist),
@@ -203,11 +196,9 @@ where
     for header in headers {
         match CutList::try_from(header.id()) {
             Ok(cutlist) => {
-                cutlist.validate().context(format!(
-                    "Cut list {} for {:?} is not valid",
-                    header.id(),
-                    file_name
-                ))?;
+                cutlist
+                    .validate()
+                    .context(format!("Cut list {} is not valid", header.id(),))?;
 
                 match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
                     Ok(_) => {
@@ -218,8 +209,7 @@ where
                         error!(
                             "{:?}",
                             anyhow!(err).context(format!(
-                                "Could not cut {:?} with cut list {}",
-                                file_name,
+                                "Could not cut video with cut list {}",
                                 header.id()
                             ))
                         );
@@ -229,11 +219,7 @@ where
             Err(err) => {
                 error!(
                     "{:?}",
-                    anyhow!(err).context(format!(
-                        "Could not retrieve cut list {} for {:?}",
-                        header.id(),
-                        file_name
-                    ))
+                    anyhow!(err).context(format!("Could not retrieve cut list {}", header.id(),))
                 );
             }
         }
@@ -241,8 +227,7 @@ where
 
     if !is_cut {
         return Err(CutError::Any(anyhow!(
-            "No cut list could be successfully applied to cut {:?}",
-            file_name
+            "No cut list could be successfully applied to cut video"
         )));
     }
 

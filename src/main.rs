@@ -69,7 +69,7 @@ fn process_videos() -> anyhow::Result<()> {
         .iter()
         .fold(Ok(()), |res, video| {
             if let Some(err) = video.error() {
-                error!("{:?}", err);
+                error!("{}:\n{:?}\n", video.file_name(), err);
                 Err(anyhow!("An error occurred during processing of OTR videos"))
             } else {
                 res

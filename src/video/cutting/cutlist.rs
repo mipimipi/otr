@@ -135,29 +135,19 @@ pub fn headers_from_provider(
     trace!("\"{}\": Request cut lists from provider", file_name);
 
     let response = reqwest::blocking::get(CUTLIST_RETRIEVE_HEADERS_URI.to_string() + file_name)
-        .with_context(|| {
-            format!(
-                "Did not get a response for cut list header request for \"{}\"",
-                file_name
-            )
-        })?
+        .with_context(|| "Did not get a response for cut list header request")?
         .text()
-        .with_context(|| {
-            format!(
-                "Could not parse cut list header response for \"{}\"",
-                file_name
-            )
-        })?;
+        .with_context(|| "Could not parse cut list header response")?;
 
     if response.is_empty() {
         trace!("\"{}\": No cut lists retrieved from provider", file_name);
-        return Err(anyhow!("Did not find a cut list for \"{:?}\"", file_name));
+        return Err(anyhow!("No cut list could be retrieved"));
     }
 
     let mut headers: Vec<ProviderHeader> = vec![];
 
-    let raw_headers: RawHeaders = quick_xml::de::from_str(&response)
-        .with_context(|| format!("Could not parse cut list headers for {:?}", file_name))?;
+    let raw_headers: RawHeaders =
+        quick_xml::de::from_str(&response).with_context(|| "Could not parse cut list headers")?;
 
     trace!(
         "\"{}\": {} cut lists retrieved from provider",
