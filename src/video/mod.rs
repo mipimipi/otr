@@ -15,6 +15,7 @@ use log::*;
 use regex::Regex;
 use std::{
     cmp, fmt, fs,
+    marker::Copy,
     path::{Path, PathBuf},
 };
 
@@ -104,68 +105,6 @@ lazy_static! {
         Regex::new(r"^([^\.]+_\d{2}.\d{2}.\d{2}_\d{2}-\d{2}_[^_]+_\d+_TVOON_DE)\.(.*cut\..+)$").unwrap();
 }
 
-/// Support conversion of a &Path into a Video. Usage of From trait is not
-/// possible since not all paths represent OTR videos and thus, an error can
-/// occur
-impl TryFrom<&Path> for Video {
-    type Error = anyhow::Error;
-
-    fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        if let Some(file_name) = path.file_name() {
-            if let Some(file_name_str) = file_name.to_str() {
-                // Check if path represents a cut video file (the check for cut
-                // video files must be done before the check for uncut video
-                // file since cut video files in some cases also match the
-                // regex for uncut files)
-                if RE_CUT_VIDEO.is_match(file_name_str) {
-                    // Assemble Video instance
-                    let captures = RE_CUT_VIDEO.captures(file_name_str).unwrap();
-                    let appendix = captures
-                        .get(2)
-                        .unwrap()
-                        .as_str()
-                        .replace("cut.", "")
-                        .replace(".mpg", "");
-                    return Ok(Video {
-                        p: path.to_path_buf(),
-                        k: Key::from(
-                            captures.get(1).unwrap().as_str().to_string()
-                                + if appendix.starts_with('.') { "" } else { "." }
-                                + &appendix,
-                        ),
-                        s: Status::Cut,
-                        e: None,
-                    });
-                }
-                // Check if path represents an encoded or decoded video file
-                if RE_UNCUT_VIDEO.is_match(file_name_str) {
-                    // Assemble Video instance
-                    let captures = RE_UNCUT_VIDEO.captures(file_name_str).unwrap();
-                    return Ok(Video {
-                        p: path.to_path_buf(),
-                        k: Key::from(
-                            captures.get(1).unwrap().as_str().to_string()
-                                + if let Some(fmt) = captures.name("fmt") {
-                                    fmt.as_str()
-                                } else {
-                                    ""
-                                }
-                                + captures.name("ext").unwrap().as_str(),
-                        ),
-                        s: if captures.name("encext").is_some() {
-                            Status::Encoded
-                        } else {
-                            Status::Decoded
-                        },
-                        e: None,
-                    });
-                }
-            }
-        }
-        Err(anyhow!("{:?} is not a valid video file", path))
-    }
-}
-
 /// Support ordering of videos: By key (ascending), status (descending)
 impl Eq for Video {}
 impl Ord for Video {
@@ -252,6 +191,65 @@ impl Video {
         if let Err(err) = self._decode(user, password) {
             self.e = Some(err)
         }
+    }
+
+    /// Create a new video from a video file path
+    fn new<P>(path: P) -> anyhow::Result<Self>
+    where
+        P: Into<PathBuf> + Copy,
+    {
+        if let Some(file_name) = path.into().file_name() {
+            if let Some(file_name_str) = file_name.to_str() {
+                // Check if path represents a cut video file (the check for cut
+                // video files must be done before the check for uncut video
+                // file since cut video files in some cases also match the
+                // regex for uncut files)
+                if RE_CUT_VIDEO.is_match(file_name_str) {
+                    // Assemble Video instance
+                    let captures = RE_CUT_VIDEO.captures(file_name_str).unwrap();
+                    let appendix = captures
+                        .get(2)
+                        .unwrap()
+                        .as_str()
+                        .replace("cut.", "")
+                        .replace(".mpg", "");
+                    return Ok(Video {
+                        p: path.into(),
+                        k: Key::from(
+                            captures.get(1).unwrap().as_str().to_string()
+                                + if appendix.starts_with('.') { "" } else { "." }
+                                + &appendix,
+                        ),
+                        s: Status::Cut,
+                        e: None,
+                    });
+                }
+                // Check if path represents an encoded or decoded video file
+                if RE_UNCUT_VIDEO.is_match(file_name_str) {
+                    // Assemble Video instance
+                    let captures = RE_UNCUT_VIDEO.captures(file_name_str).unwrap();
+                    return Ok(Video {
+                        p: path.into(),
+                        k: Key::from(
+                            captures.get(1).unwrap().as_str().to_string()
+                                + if let Some(fmt) = captures.name("fmt") {
+                                    fmt.as_str()
+                                } else {
+                                    ""
+                                }
+                                + captures.name("ext").unwrap().as_str(),
+                        ),
+                        s: if captures.name("encext").is_some() {
+                            Status::Encoded
+                        } else {
+                            Status::Decoded
+                        },
+                        e: None,
+                    });
+                }
+            }
+        }
+        Err(anyhow!("{:?} is not a valid video file", path.into()))
     }
 
     // Path of the video it would have if it had the next status - i.e., the

@@ -16,7 +16,7 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
 
     // Collect videos from input array
     for path in in_videos {
-        if let Ok(mut video) = Video::try_from(*path) {
+        if let Ok(mut video) = Video::new(*path) {
             video.move_to_working_dir()?;
             videos.push(video);
             continue;
@@ -68,7 +68,7 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
             continue;
         }
 
-        match Video::try_from(file_ref.path().as_path()) {
+        match Video::new(file_ref.path().as_path()) {
             Ok(mut video) => {
                 video.move_to_working_dir()?;
                 videos.push(video);
