@@ -94,7 +94,7 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
 pub fn working_dir() -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {
-        if let Some(_dir) = cfg::working_dir()? {
+        if let Some(_dir) = cfg::working_dir() {
             trace!("Working directory retrieved from configuration file");
             return Ok(_dir.to_path_buf());
         }

@@ -1,4 +1,7 @@
+use super::CutlistRating;
+
 use anyhow::{anyhow, Context};
+use log::*;
 use once_cell::sync::OnceCell;
 use std::{
     fs::File,
@@ -9,41 +12,64 @@ use std::{
 /// Name of configuration file
 const CFG_FILENAME: &str = "otr.json";
 
-/// Determine OTR access data (user, password). First, it is tried to retrieve
-/// that data from the command line arguments. If these do not contain the access
-/// data, they are tried to retrieved from the configuration file. The result is
-/// stored in a static variable. Thus, data is only determined once.
-pub fn otr_access_data<'a>(
-    user: Option<&'a str>,
-    password: Option<&'a str>,
-) -> anyhow::Result<(&'a str, &'a str)> {
-    Ok((
-        if let Some(_user) = user {
-            _user
-        } else {
-            let cfg = cfg_from_file()?;
-            if let Some(user) = &cfg.user {
-                user.as_str()
-            } else {
-                return Err(anyhow!("OTR user name is not configured"));
-            }
-        },
-        if let Some(_password) = password {
-            _password
-        } else {
-            let cfg = cfg_from_file()?;
-            if let Some(password) = &cfg.password {
-                password.as_str()
-            } else {
-                return Err(anyhow!("OTR password is not configured"));
-            }
-        },
-    ))
+/// Returns the minimum cut list rating from the configuration file. In case an
+/// error occurred while reading the configuration data from the file, None is
+/// returned
+pub fn min_cutlist_rating() -> Option<CutlistRating> {
+    match cfg_from_file() {
+        Ok(cfg) => cfg.min_cutlist_rating,
+        Err(err) => {
+            warn!(
+                "Cannot determine minimum cut list rating from configuration: {:?}",
+                err
+            );
+            None
+        }
+    }
 }
 
-/// Return working directory from configuration file
-pub fn working_dir() -> anyhow::Result<Option<&'static Path>> {
-    Ok(cfg_from_file()?.working_dir.as_deref())
+/// Returns OTR access data (i.e., user ans password) that were maintained in
+/// the configuration file.  In case an error occurred while reading the
+/// configuration data from the file, None is returned. Warnings are logged if
+/// either user or password is not maintained. This is done because this function
+/// is only called if this data is required
+pub fn otr_access_data() -> Option<(&'static str, &'static str)> {
+    match cfg_from_file() {
+        Ok(cfg) => {
+            if cfg.user.is_none() {
+                warn!("OTR user is not maintained in configuration file");
+                None
+            } else if cfg.password.is_none() {
+                warn!("OTR password is not maintained in configuration file");
+                None
+            } else {
+                Some((cfg.user.as_ref().unwrap(), cfg.password.as_ref().unwrap()))
+            }
+        }
+        Err(err) => {
+            warn!(
+                "Cannot determine OTR access data from configuration file: {:?}",
+                err
+            );
+            None
+        }
+    }
+}
+
+/// Returns the working directory from configuration file. In case an error
+/// occurred while reading the configuration data from the file, None is
+/// returned
+pub fn working_dir() -> Option<&'static Path> {
+    match cfg_from_file() {
+        Ok(cfg) => cfg.working_dir.as_deref(),
+        Err(err) => {
+            warn!(
+                "Cannot determine working directory from configuration file: {:?}",
+                err
+            );
+            None
+        }
+    }
 }
 
 /// Content of the configuration file
@@ -52,6 +78,7 @@ struct CfgFromFile {
     working_dir: Option<PathBuf>,
     user: Option<String>,
     password: Option<String>,
+    min_cutlist_rating: Option<u8>,
 }
 
 /// Retrieve the content of the configuration file. That is only done once. The

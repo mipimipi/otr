@@ -12,19 +12,11 @@ use video::Video;
 /// dedicated function (with appropriate result type) to be able to use the ?
 /// operator to propagate errors
 fn process_videos() -> anyhow::Result<()> {
-    // Get OTR user and password parameters from command line (in case that was
-    // submitted)
-    let (user, password) = if cli::is_decode_command() || cli::is_process_command() {
-        cli::args().otr_access_data()
-    } else {
-        (None, None)
-    };
-
     // Collect video files from command line parameters and (sub) working
     // directories. They are returned as vector sorted by video key and
     // (descending) status.
     #[allow(clippy::manual_try_fold)]
-    video::collect(&cli::args().videos())?
+    video::collect(&cli::videos())?
         // Create an iterator that delivers type &mut Video
         .iter_mut()
         // Remove duplicate entries of the same video with "lower" status.
@@ -41,24 +33,22 @@ fn process_videos() -> anyhow::Result<()> {
             video
         })
         // Decode videos and print error messages. Result of the closure is the
-        // video (&mut Video), whether the decoding was successful or not.
+        // video (&mut Video), whether the decoding was successful or not. Errors
+        // are collected in an attribute of the video structure
         .map(|video| {
             if cli::is_decode_command() || cli::is_process_command() {
-                video.decode(user, password);
+                video.decode(cli::otr_access_data());
             }
             video
         })
-        // Cut videos in parallel and print error messages. Result of
-        // the closure is the video (&mut Video), whether the cutting was
-        // successful or not.
+        // Cut videos in parallel. Result of the closure is the video (&mut
+        // Video), whether the cutting was successful or not. Errors are
+        // collected in an attribute of the video structure
         .collect::<Vec<&mut Video>>()
         .into_par_iter()
         .map(|video| {
             if cli::is_cut_command() || cli::is_process_command() {
-                video.cut(
-                    cli::args().cutlist_access_type(),
-                    cli::args().min_cutlist_rating(),
-                );
+                video.cut(cli::cutlist_access_type(), cli::min_cutlist_rating());
             }
             video
         })
@@ -84,8 +74,8 @@ fn main() {
         .module(module_path!())
         .show_module_names(false)
         .color(ColorChoice::Auto)
-        .quiet(cli::args().quiet)
-        .verbosity(match cli::args().verbose {
+        .quiet(cli::quiet())
+        .verbosity(match cli::verbose() {
             0 => LogLevelNum::Error,
             1 => LogLevelNum::Info,
             _ => LogLevelNum::Trace,

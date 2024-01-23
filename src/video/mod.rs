@@ -187,8 +187,8 @@ impl Video {
     /// Decode an encoded video. The video status and path is updated
     /// accordingly. The video file is moved accordingly.
     /// The real thing is done by _decode, the private counterpart function.
-    pub fn decode(&mut self, user: Option<&str>, password: Option<&str>) {
-        if let Err(err) = self._decode(user, password) {
+    pub fn decode(&mut self, access_data: Option<(&'static str, &'static str)>) {
+        if let Err(err) = self._decode(access_data) {
             self.e = Some(err)
         }
     }
@@ -252,35 +252,6 @@ impl Video {
         Err(anyhow!("{:?} is not a valid video file", path.into()))
     }
 
-    // Path of the video it would have if it had the next status - i.e., the
-    // decoded status if it is encoded now or the cut status if it is decoded
-    // now. If the video is already cut, its current path is returned.
-    fn next_path(&self) -> anyhow::Result<PathBuf> {
-        match self.s {
-            Status::Encoded => Ok(self
-                .p
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join(dirs::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
-                .join(self.file_name())
-                .with_extension("")),
-            Status::Decoded => Ok(self
-                .p
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join(dirs::working_sub_dir(&(Status::Cut).as_dir_kind())?)
-                .join(self.file_name())
-                .with_extension(
-                    "cut".to_string() + "." + self.p.extension().unwrap().to_str().unwrap(),
-                )),
-            _ => Ok(self.p.to_path_buf()),
-        }
-    }
-
     // Changes the videos to the next status (i.e., if its in status encoded,
     // it is set to decoded, and if it is in status decoded it will be set to
     // cut). The video path is changed accordingly.
@@ -294,10 +265,10 @@ impl Video {
         Ok(())
     }
 
-    /// Cut a decoded Video. The video status and path is updated accordingly. The
-    /// video file is moved accordingly. Private cut function which is
-    /// wrapped by its public counterpart.
-    /// cutlist_access specified how to (try to) get an appropriate cut list,
+    /// Cut a decoded Video (Private cut function which is wrapped by its public
+    /// counterpart). The video status and path is updated accordingly. The video
+    /// file is moved accordingly.
+    /// cutlist_access specifies how to (try to) get an appropriate cut list,
     /// min_cutlist_rating specifies the minimum rating a cutlist must have when
     /// automatically selected from the cut list provider
     fn _cut(
@@ -313,8 +284,12 @@ impl Video {
         info!("Cutting {:?} ...", self.file_name());
 
         // Execute cutting of video
-        if let Err(err) = cutting::cut(&self, self.next_path()?, cutlist_access, min_cutlist_rating)
-        {
+        if let Err(err) = cutting::cut(
+            &self,
+            self.next_path()?,
+            cutlist_access,
+            min_cutlist_rating.or_else(cfg::min_cutlist_rating),
+        ) {
             return match err {
                 cutting::CutError::NoCutlist => Err(anyhow!("No cut list exists for video")),
                 cutting::CutError::Any(err) => Err(err.context("Could not cut video")),
@@ -347,16 +322,21 @@ impl Video {
         Ok(())
     }
 
-    /// Decode an encoded video. The video status and path is updated accordingly.
-    /// The video file is moved accordingly. Private decode function which is
-    /// wrapped by its public counterpart.
-    fn _decode(&mut self, user: Option<&str>, password: Option<&str>) -> anyhow::Result<()> {
+    /// Decode an encoded video (private decode function which is wrapped by its
+    /// public counterpart). The video status and path is updated accordingly.
+    /// The video file is moved accordingly.
+    fn _decode(&mut self, access_data: Option<(&'static str, &'static str)>) -> anyhow::Result<()> {
         // Nothing to do if video is not in status "encoded"
         if self.status() != Status::Encoded {
             return Ok(());
         }
 
-        let (user, password) = cfg::otr_access_data(user, password)?;
+        let (user, password) =
+            if let Some((_user, _password)) = access_data.or_else(cfg::otr_access_data) {
+                (_user, _password)
+            } else {
+                return Err(anyhow!("OTR user and password required to decode video"));
+            };
 
         info!("Decoding {:?} ...", self.file_name());
 
@@ -391,5 +371,34 @@ impl Video {
         self.p = target_path;
 
         Ok(())
+    }
+
+    // Path of the video it would have if it had the next status - i.e., the
+    // decoded status if it is encoded now or the cut status if it is decoded
+    // now. If the video is already cut, its current path is returned.
+    fn next_path(&self) -> anyhow::Result<PathBuf> {
+        match self.s {
+            Status::Encoded => Ok(self
+                .p
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(dirs::working_sub_dir(&(Status::Decoded).as_dir_kind())?)
+                .join(self.file_name())
+                .with_extension("")),
+            Status::Decoded => Ok(self
+                .p
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join(dirs::working_sub_dir(&(Status::Cut).as_dir_kind())?)
+                .join(self.file_name())
+                .with_extension(
+                    "cut".to_string() + "." + self.p.extension().unwrap().to_str().unwrap(),
+                )),
+            _ => Ok(self.p.to_path_buf()),
+        }
     }
 }

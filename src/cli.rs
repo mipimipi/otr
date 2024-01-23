@@ -4,6 +4,112 @@ use indoc::indoc;
 use once_cell::sync::OnceCell;
 use std::path::{Path, PathBuf};
 
+/// Converts cli parameters for cut list access into CutlistAccessType.
+/// Note: Calling this function does only make sense for some sub commands.
+///       If it is called when otr is called with a sub command that does
+///       not have appropriate parameters, the function panics!
+pub fn cutlist_access_type() -> CutlistAccessType<'static> {
+    match &args().command {
+        Commands::Cut {
+            intervals,
+            file,
+            id,
+            ..
+        } => {
+            if let Some(_intervals) = intervals {
+                CutlistAccessType::Direct(_intervals)
+            } else if let Some(_file) = file {
+                CutlistAccessType::File(_file)
+            } else if let Some(_id) = id {
+                CutlistAccessType::ID(*_id)
+            } else {
+                CutlistAccessType::Auto
+            }
+        }
+        Commands::Decode { .. } => {
+            panic!("Sub command 'decode' does not have cut list access type as parameter")
+        }
+        Commands::Process { .. } => CutlistAccessType::Auto,
+    }
+}
+
+/// Returns true if otr was called with sub command "cut", otherwise false
+pub fn is_cut_command() -> bool {
+    if let Commands::Cut { .. } = args().command {
+        return true;
+    }
+    false
+}
+
+/// Returns true if otr was called with sub command "decode", otherwise false
+pub fn is_decode_command() -> bool {
+    if let Commands::Decode { .. } = args().command {
+        return true;
+    }
+    false
+}
+
+/// Returns true if otr was called with sub command "process", otherwise false
+pub fn is_process_command() -> bool {
+    if let Commands::Process { .. } = args().command {
+        return true;
+    }
+    false
+}
+
+/// Returns minimum cutlist rating
+pub fn min_cutlist_rating() -> Option<CutlistRating> {
+    match &args().command {
+        Commands::Cut { rating, .. } => *rating,
+        Commands::Decode { .. } => {
+            panic!("Sub command 'decode' does not have cut list rating as parameter")
+        }
+        Commands::Process { rating, .. } => *rating,
+    }
+}
+
+/// Returns true if flag --quiet/-q was set by the user
+pub fn quiet() -> bool {
+    args().quiet
+}
+
+/// Returns the verbosity level that was set by the user
+pub fn verbose() -> u8 {
+    args().verbose
+}
+
+/// Returns videos (file paths) as array for different sub commands. This is
+/// independent from number of videos a sub command required (i.e., if a sub
+/// command required only one video, this video is returned in an array)
+pub fn videos() -> Vec<&'static Path> {
+    match &args().command {
+        Commands::Cut { video, .. } => vec![video.as_path()],
+        Commands::Decode { video, .. } => vec![video.as_path()],
+        Commands::Process { videos, .. } => videos.iter().map(|p| p.as_path()).collect(),
+    }
+}
+
+/// Returns OTR access data (user, password).
+/// Note: Calling this function does only make sense for some sub commands.
+///       If it is called when otr is called with a sub command that does
+///       not have appropriate parameters, the function panics!
+pub fn otr_access_data() -> Option<(&'static str, &'static str)> {
+    match &args().command {
+        Commands::Cut { .. } => {
+            panic!("Sub command 'cut' does not have OTR access data as parameters")
+        }
+        Commands::Decode { user, password, .. } | Commands::Process { user, password, .. } => {
+            // Note: Either both, user and password are Some(...) or None.
+            //       This is ensured by the clap configuration
+            if user.is_some() {
+                Some((user.as_ref().unwrap(), password.as_ref().unwrap()))
+            } else {
+                None
+            }
+        }
+    }
+}
+
 /// Structure to hold the command line arguments
 #[derive(Parser)]
 #[command(
@@ -12,9 +118,9 @@ use std::path::{Path, PathBuf};
     author = env!("CARGO_PKG_AUTHORS"),
     about = env!("CARGO_PKG_DESCRIPTION")
 )]
-pub struct Args {
+struct Args {
     #[command(subcommand)]
-    pub command: Commands,
+    command: Commands,
     #[arg(
         global = true,
         short = 'v',
@@ -27,94 +133,27 @@ pub struct Args {
         messages are displayed. With two or more occurences the highest trace level is
         switched on"}
     )]
-    pub verbose: u8,
+    verbose: u8,
     #[arg(
         global = true,
         short = 'q',
         long = "quiet",
         help = "Switch off output completely, even error messages will not be displayed"
     )]
-    pub quiet: bool,
-}
-
-impl Args {
-    /// Converts cli parameters for cut list access into CutlistAccessType.
-    /// Note: Calling this function does only make sense for some sub commands.
-    ///       If it is called when otr is called with a sub command that does
-    ///       not have appropriate parameters, the function panics!
-    pub fn cutlist_access_type(&self) -> CutlistAccessType {
-        match &self.command {
-            Commands::Cut {
-                intervals,
-                file,
-                id,
-                ..
-            } => {
-                if let Some(_intervals) = intervals {
-                    CutlistAccessType::Direct(_intervals)
-                } else if let Some(_file) = file {
-                    CutlistAccessType::File(_file)
-                } else if let Some(_id) = id {
-                    CutlistAccessType::ID(*_id)
-                } else {
-                    CutlistAccessType::Auto
-                }
-            }
-            Commands::Decode { .. } => {
-                panic!("Sub command 'decode' does not have cut list access type as parameter")
-            }
-            Commands::Process { .. } => CutlistAccessType::Auto,
-        }
-    }
-
-    /// Returns minimum cutlist rating
-    pub fn min_cutlist_rating(&self) -> Option<CutlistRating> {
-        match &self.command {
-            Commands::Cut { rating, .. } => *rating,
-            Commands::Decode { .. } => {
-                panic!("Sub command 'decode' does not have cut list rating as parameter")
-            }
-            Commands::Process { rating, .. } => *rating,
-        }
-    }
-
-    /// Returns OTR access data (user, password).
-    /// Note: Calling this function does only make sense for some sub commands.
-    ///       If it is called when otr is called with a sub command that does
-    ///       not have appropriate parameters, the function panics!
-    pub fn otr_access_data(&self) -> (Option<&str>, Option<&str>) {
-        match &self.command {
-            Commands::Cut { .. } => {
-                panic!("Sub command 'cut' does not have OTR access data as parameters")
-            }
-            Commands::Decode { user, password, .. } | Commands::Process { user, password, .. } => {
-                (user.as_deref(), password.as_deref())
-            }
-        }
-    }
-
-    /// Returns videos (file paths) as array for different sub commands. This is
-    /// independent from number of videos a sub command required (i.e., only one
-    /// or many)
-    pub fn videos(&self) -> Vec<&Path> {
-        match &self.command {
-            Commands::Cut { video, .. } => vec![video.as_path()],
-            Commands::Decode { video, .. } => vec![video.as_path()],
-            Commands::Process { videos, .. } => videos.iter().map(|p| p.as_path()).collect(),
-        }
-    }
+    quiet: bool,
 }
 
 /// Command line arguments. The conversion into that structure is done once only.
 /// The result is stored in a static variable.
-pub fn args() -> &'static Args {
+fn args() -> &'static Args {
     static ARGS: OnceCell<Args> = OnceCell::new();
     ARGS.get_or_init(Args::parse)
 }
 
+/// (Sub) commands of otr command with its parameters and flags
 #[derive(Subcommand)]
 #[group(name = "input", required = false, multiple = false)]
-pub enum Commands {
+enum Commands {
     #[command(
         name = "cut",
         about = "Cut a video",
@@ -181,13 +220,15 @@ pub enum Commands {
         #[arg(
             short = 'u',
             long = "user",
-            help = "User name for Online TV Recorder (overwrites configuration file content)"
+            help = "User name for Online TV Recorder (overwrites configuration file content)",
+            requires("password")
         )]
         user: Option<String>,
         #[arg(
             short = 'p',
             long = "password",
-            help = "Password for Online TV Recorder (overwrites configuration file content)"
+            help = "Password for Online TV Recorder (overwrites configuration file content)",
+            requires("user")
         )]
         password: Option<String>,
         #[arg(name = "video", help = "Path of video to be decoded")]
@@ -208,13 +249,15 @@ pub enum Commands {
         #[arg(
             short = 'u',
             long = "user",
-            help = "User name for Online TV Recorder (overwrites configuration file content)"
+            help = "User name for Online TV Recorder (overwrites configuration file content)",
+            requires("password")
         )]
         user: Option<String>,
         #[arg(
             short = 'p',
             long = "password",
-            help = "Password for Online TV Recorder (overwrites configuration file content)"
+            help = "Password for Online TV Recorder (overwrites configuration file content)",
+            requires = "user"
         )]
         password: Option<String>,
         #[arg(
@@ -225,28 +268,4 @@ pub enum Commands {
         rating: Option<CutlistRating>,
         videos: Vec<PathBuf>,
     },
-}
-
-/// Returns true if otr was called with sub command "cut", otherwise false
-pub fn is_cut_command() -> bool {
-    if let Commands::Cut { .. } = args().command {
-        return true;
-    }
-    false
-}
-
-/// Returns true if otr was called with sub command "decode", otherwise false
-pub fn is_decode_command() -> bool {
-    if let Commands::Decode { .. } = args().command {
-        return true;
-    }
-    false
-}
-
-/// Returns true if otr was called with sub command "process", otherwise false
-pub fn is_process_command() -> bool {
-    if let Commands::Process { .. } = args().command {
-        return true;
-    }
-    false
 }
