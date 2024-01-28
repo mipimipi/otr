@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use log::*;
 use rayon::prelude::*;
-use stderrlog::{ColorChoice, LogLevelNum};
+use regex::Regex;
 use video::Video;
 
 /// Process videos (i.e., collect, move, decode and cut them). This is done in a
@@ -69,16 +69,16 @@ fn process_videos() -> anyhow::Result<()> {
 
 fn main() {
     // Set up logging (i.e., which messages are displayed on stdout and stderr)
-    stderrlog::new()
-        .show_level(false)
-        .module(module_path!())
-        .show_module_names(false)
-        .color(ColorChoice::Auto)
-        .quiet(cli::quiet())
-        .verbosity(match cli::verbose() {
-            0 => LogLevelNum::Error,
-            1 => LogLevelNum::Info,
-            _ => LogLevelNum::Trace,
+    print_logger::new()
+        .targets_by_regex(&[Regex::new(&format!("^{}[::.+]*", module_path!())).unwrap()])
+        .level_filter(if cli::quiet() {
+            LevelFilter::Off
+        } else {
+            match cli::verbose() {
+                0 => LevelFilter::Error,
+                1 => LevelFilter::Info,
+                _ => LevelFilter::Trace,
+            }
         })
         .init()
         .unwrap();

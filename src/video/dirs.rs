@@ -94,20 +94,23 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
 pub fn working_dir() -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {
-        if let Some(_dir) = cfg::working_dir() {
+        let dir = if let Some(_dir) = cfg::working_dir() {
             trace!("Working directory retrieved from configuration file");
-            return Ok(_dir.to_path_buf());
-        }
+            _dir.to_path_buf()
+        } else {
+            trace!("No working directory configured: Try default directory");
 
-        trace!("No working directory configured: Try default directory");
+            if let Some(video_dir) = dirs::video_dir() {
+                trace!("Video directory determined: Assemble default working directory");
+                video_dir.join(DEFAULT_WORKING_DIR)
+            } else {
+                trace!("Video directory could not be determined");
+                return Err(anyhow!("Working directory could not be determined"));
+            }
+        };
 
-        if let Some(video_dir) = dirs::video_dir() {
-            trace!("Video directory determined: Assemble default working directory");
-            return Ok(video_dir.join(DEFAULT_WORKING_DIR));
-        }
+        debug!("Working directory: {:?}", dir);
 
-        debug!("Video directory could not be determined");
-
-        Err(anyhow!("Working directory could not be determined"))
+        Ok(dir)
     })
 }
