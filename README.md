@@ -12,6 +12,7 @@ Supported architectures are:
 - [x86_64](https://en.wikipedia.org/wiki/X86-64)/amd64
 - [AArch64](https://en.wikipedia.org/wiki/AArch64)/arm64, incl. platforms such as [Raspberry Pi 4](https://en.wikipedia.org/wiki/Raspberry_Pi_4) and [Apple Silicon, M series](https://en.wikipedia.org/wiki/Apple_silicon#M_series)
 
+## Table of contents
 [[_TOC_]]
 
 ## Features
