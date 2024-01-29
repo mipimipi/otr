@@ -1,6 +1,6 @@
 # Changelog
 
-## [Release 0.8.0](https://gitlab.com/mipimipi/otr/tags/v0.8.0) (TODO)
+## [Release 0.8.0](https://gitlab.com/mipimipi/otr/tags/v0.8.0) (2024-01-29)
 
 ### Added
 
