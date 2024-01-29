@@ -265,9 +265,9 @@ impl Video {
         Ok(())
     }
 
-    /// Cut a decoded Video (Private cut function which is wrapped by its public
-    /// counterpart). The video status and path is updated accordingly. The video
-    /// file is moved accordingly.
+    /// Cut a decoded Video (private cut function which is wrapped by its public
+    /// counterpart). The video status and path, and the video file is moved
+    /// accordingly.
     /// cutlist_access specifies how to (try to) get an appropriate cut list,
     /// min_cutlist_rating specifies the minimum rating a cutlist must have when
     /// automatically selected from the cut list provider
@@ -323,8 +323,8 @@ impl Video {
     }
 
     /// Decode an encoded video (private decode function which is wrapped by its
-    /// public counterpart). The video status and path is updated accordingly.
-    /// The video file is moved accordingly.
+    /// public counterpart). The video status and path is updated accordingly,
+    /// and the video file is moved accordingly.
     fn _decode(&mut self, access_data: Option<(&'static str, &'static str)>) -> anyhow::Result<()> {
         // Nothing to do if video is not in status "encoded"
         if self.status() != Status::Encoded {

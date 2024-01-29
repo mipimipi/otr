@@ -17,7 +17,13 @@ const CFG_FILENAME: &str = "otr.json";
 /// returned
 pub fn min_cutlist_rating() -> Option<CutlistRating> {
     match cfg_from_file() {
-        Ok(cfg) => cfg.min_cutlist_rating,
+        Ok(cfg) => {
+            if let Some(_cutting) = &cfg.cutting {
+                _cutting.min_cutlist_rating
+            } else {
+                None
+            }
+        }
         Err(err) => {
             warn!(
                 "Cannot determine minimum cut list rating from configuration: {:?}",
@@ -28,24 +34,33 @@ pub fn min_cutlist_rating() -> Option<CutlistRating> {
     }
 }
 
-/// Returns OTR access data (i.e., user ans password) that were maintained in
+/// Returns OTR access data (i.e., user and password) that were maintained in
 /// the configuration file.  In case an error occurred while reading the
 /// configuration data from the file, None is returned. Warnings are logged if
 /// either user or password is not maintained. This is done because this function
 /// is only called if this data is required
 pub fn otr_access_data() -> Option<(&'static str, &'static str)> {
     match cfg_from_file() {
-        Ok(cfg) => {
-            if cfg.user.is_none() {
-                warn!("OTR user is not maintained in configuration file");
+        Ok(cfg) => match &cfg.decoding {
+            None => {
+                warn!("OTR access data is not maintained in configuration file");
                 None
-            } else if cfg.password.is_none() {
-                warn!("OTR password is not maintained in configuration file");
-                None
-            } else {
-                Some((cfg.user.as_ref().unwrap(), cfg.password.as_ref().unwrap()))
             }
-        }
+            Some(_decoding) => {
+                if _decoding.user.is_none() {
+                    warn!("OTR user is not maintained in configuration file");
+                    None
+                } else if _decoding.password.is_none() {
+                    warn!("OTR password is not maintained in configuration file");
+                    None
+                } else {
+                    Some((
+                        _decoding.user.as_ref().unwrap(),
+                        _decoding.password.as_ref().unwrap(),
+                    ))
+                }
+            }
+        },
         Err(err) => {
             warn!(
                 "Cannot determine OTR access data from configuration file: {:?}",
@@ -76,8 +91,16 @@ pub fn working_dir() -> Option<&'static Path> {
 #[derive(serde::Deserialize, Debug, Default)]
 struct CfgFromFile {
     working_dir: Option<PathBuf>,
+    decoding: Option<Decoding>,
+    cutting: Option<Cutting>,
+}
+#[derive(serde::Deserialize, Debug, Default)]
+struct Decoding {
     user: Option<String>,
     password: Option<String>,
+}
+#[derive(serde::Deserialize, Debug, Default)]
+struct Cutting {
     min_cutlist_rating: Option<u8>,
 }
 

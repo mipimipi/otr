@@ -70,7 +70,9 @@ fn process_videos() -> anyhow::Result<()> {
 fn main() {
     // Set up logging (i.e., which messages are displayed on stdout and stderr)
     print_logger::new()
+        // Only allow log messages from otr and its sub modules
         .targets_by_regex(&[Regex::new(&format!("^{}[::.+]*", module_path!())).unwrap()])
+        // Convert CLI of otr flags into level filter of log
         .level_filter(if cli::quiet() {
             LevelFilter::Off
         } else {
@@ -80,7 +82,9 @@ fn main() {
                 _ => LevelFilter::Trace,
             }
         })
+        // Initialize loggiong
         .init()
+        // Provoke dump in case of an error
         .unwrap();
 
     // Process video files (collect, decode and cut them)

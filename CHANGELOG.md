@@ -1,23 +1,45 @@
 # Changelog
 
-## [Release 0.7.0](https://gitlab.com/mipimipi/otr/tags/v0.7.0) (2024-01-10
+## [Release 0.8.0](https://gitlab.com/mipimipi/otr/tags/v0.8.0) (TODO)
+
+### Added
+
+- CLI parameters for verbosity and switching off output completely
+- Possibility to define minimum cut list rating - either via CLI parameter or via configuration option
+- Dedicated (sub) command for decoding videos (without cutting them)
+- Possibility to submit a cut list ID to the cut command (new parameter `--cutlist-id` was introduced for that)
+- Verified that otr is running on Windows
+
+### Changed
+
+- otr only displays error messages per default. If more detailed messages are wanted, this must be specified via the new CLI parameter
+- Cut list-relevant parameters of cut command unified. `--list/-l` and `--file/-f` were replaced by `--cutlist` and `--cutlist-file`
+- Structure of configuration changed incompatibly: Introduced sub structures for decoding and cutting
+
+### Removed
+
+- CLI parameter for configuration file
+- CLI parameter for working directory
+
+
+## [Release 0.7.0](https://gitlab.com/mipimipi/otr/tags/v0.7.0) (2024-01-10)
 
 ### Added
 
 - Support for macOS
 
-## [Release 0.6.0](https://gitlab.com/mipimipi/otr/tags/v0.6.0) (2023-04-07
+## [Release 0.6.0](https://gitlab.com/mipimipi/otr/tags/v0.6.0) (2023-04-07)
 
 ### Added
 
 - Possibility to read a cut list from file: `otr cut` got a corresponding option
-- If cut list intervals are defined based on frame numbers AND time, consider both options. So far, in this case only the fram numbers intervals were used
+- If cut list intervals are defined based on frame numbers AND time, consider both options. So far, in this case only the frame numbers intervals were used
 
 ### Changed
 
 - Syntax of intervals string of `otr cut`: `times` -> `time`
 
-## [Release 0.5.0](https://gitlab.com/mipimipi/otr/tags/v0.5.0) (2023-04-01
+## [Release 0.5.0](https://gitlab.com/mipimipi/otr/tags/v0.5.0) (2023-04-01)
 
 ### Added
 
@@ -27,13 +49,13 @@
 
 - Introduced sub commands `process` and `cut`
 
-## [Release 0.4.0](https://gitlab.com/mipimipi/otr/tags/v0.4.0) (2022-09-24
+## [Release 0.4.0](https://gitlab.com/mipimipi/otr/tags/v0.4.0) (2022-09-24)
 
 ### Changed
 
 - Refactoring: made the code "rustier"
 
-## [Release 0.3.0](https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-13
+## [Release 0.3.0](https://gitlab.com/mipimipi/otr/tags/v0.3.0) (2022-09-13)
 
 ### Changed
 
