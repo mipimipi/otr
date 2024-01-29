@@ -1,4 +1,5 @@
 [![Crates.io](https://img.shields.io/crates/v/otr.svg)](https://crates.io/crates/otr)
+[![Documentation](https://docs.rs/otr/badge.svg)](https://docs.rs/otr)
 [![REUSE status](https://api.reuse.software/badge/gitlab.com/mipimipi/otr)](https://api.reuse.software/info/gitlab.com/mipimipi/otr)
 
 # otr
@@ -13,7 +14,14 @@ Supported architectures are:
 - [AArch64](https://en.wikipedia.org/wiki/AArch64)/arm64, incl. platforms such as [Raspberry Pi 4](https://en.wikipedia.org/wiki/Raspberry_Pi_4) and [Apple Silicon, M series](https://en.wikipedia.org/wiki/Apple_silicon#M_series)
 
 ## Table of contents
-[[_TOC_]]
+
+- [Features](#features)
+- [Installation](#installation)
+    - [Linux](#linux)
+    - [macOS](#macos)
+    - [Windows](#windows)
+- [Configuration](#configuration)
+- [Running otr](#running-otr) 
 
 ## Features
 
@@ -106,9 +114,7 @@ The installation on Windows is a little bit cumbersome. Since there is no Window
 
 1. Have fun with otr.
 
-## Usage
-
-### Configuration
+## Configuration
 
 otr can be configured by creating a configuration file in [JSON](https://en.wikipedia.org/wiki/JSON) format. It is named `otr.json` and stored in the default configuration directory of your OS. That is ...
 
@@ -152,9 +158,9 @@ otr requires a working directory. In this directory, the sub directories `Encode
 
 There, video files are stored depending on their processing status. I.e., `Cut` contains the video files that have been cut, `Decoded` the decoded files that have not been cut yet (it can happen that a video can be decoded but cannot be cut because cut lists do not exist yet). If videos have been cut, the uncut version is stored under `Decoded/Archive` to allow users to repeat the cutting if they are not happy with the result.
 
-### Running otr
+## Running otr
 
-#### `otr process`
+### `otr process`
 
 `otr process` processes all video files that are either submitted as command line parameters, or stored in the [working directory](#working-directory).
 
@@ -164,18 +170,18 @@ otr requires a certain schema for the name of video files (that is the schema OT
 
 Since MKVmerge is used to cut videos, the resulting files have the [Matroska container format](https://en.wikipedia.org/wiki/Matroska) (.mkv). 
 
-#### `otr decode`
+### `otr decode`
 
  `otr decode` allows decoding a single video. See the command line help for details.
 
-#### `otr cut`
+### `otr cut`
 
  `otr cut` allows cutting a single video. The cut list that is used for that can either be selected and downloaded automatically from cutlist.at, or submitted via commandline parameters (either as file or as dedicated cut intervals) - see the command line help for details.
 
-### Verbosity
+## Verbosity
  
 The command line flag `--verbose/-v` defines how detailed the message output of otr is. With `--quiet/-q`, there are no messages, See command line help for further details.
 
-# License
+## License
 
 [GNU Public License v3.0](https://gitlab.com/mipimipi/otr/blob/main/LICENSE)
