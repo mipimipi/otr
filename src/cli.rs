@@ -129,9 +129,9 @@ struct Args {
         help = indoc! {"
         Print status and progress information during command execution. The number of
         occurences of this flag defines the verbosity level. If this flag is not set at
-        all, only error messages are displayed. If it occurs once, warnings and info
-        messages are displayed. With two or more occurences the highest trace level is
-        switched on"}
+        all, only error, warning and information messages are displayed. If it occurs
+        once, debug messages are displayed. With two or more occurences the highest trace
+        level is switched on"}
     )]
     verbose: u8,
     #[arg(

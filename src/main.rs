@@ -77,8 +77,8 @@ fn main() {
             LevelFilter::Off
         } else {
             match cli::verbose() {
-                0 => LevelFilter::Error,
-                1 => LevelFilter::Info,
+                0 => LevelFilter::Info,
+                1 => LevelFilter::Debug,
                 _ => LevelFilter::Trace,
             }
         })
