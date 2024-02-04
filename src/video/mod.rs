@@ -8,7 +8,7 @@ pub use collecting::collect;
 pub use cutting::CutlistAccessType;
 pub use cutting::CutlistRating;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use dirs::DirKind;
 use lazy_static::lazy_static;
 use log::*;
@@ -213,8 +213,12 @@ impl Video {
                         .as_str()
                         .replace("cut.", "")
                         .replace(".mpg", "");
+                    // Assemble Video instance
                     return Ok(Video {
-                        p: path.into(),
+                        p: fs::canonicalize(path.into()).context(format!(
+                            "Could not create video from path {}",
+                            path.into().display()
+                        ))?,
                         k: Key::from(
                             captures.get(1).unwrap().as_str().to_string()
                                 + if appendix.starts_with('.') { "" } else { "." }
@@ -229,7 +233,10 @@ impl Video {
                     // Assemble Video instance
                     let captures = RE_UNCUT_VIDEO.captures(file_name_str).unwrap();
                     return Ok(Video {
-                        p: path.into(),
+                        p: fs::canonicalize(path.into()).context(format!(
+                            "Could not create video from path {}",
+                            path.into().display()
+                        ))?,
                         k: Key::from(
                             captures.get(1).unwrap().as_str().to_string()
                                 + if let Some(fmt) = captures.name("fmt") {

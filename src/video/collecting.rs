@@ -5,7 +5,7 @@ use super::{
 
 use anyhow::{anyhow, Context};
 use log::*;
-use std::{fs, path::Path};
+use std::{env, fs, path::Path};
 
 /// Collects video files either from the submitted input paths, or (if no path
 /// was submitted) from the working (sub) directories. The the corresponding
@@ -16,7 +16,22 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
 
     // Collect videos from input array
     for path in in_videos {
-        if let Ok(mut video) = Video::new(*path) {
+        // Turn path into an absolute path
+        let abs_path = if !path.is_absolute() {
+            env::current_dir()?.join(path)
+        } else {
+            path.to_path_buf()
+        };
+
+        // Check if path exists
+        if !abs_path.exists() {
+            warn!("{:?} does not exist: Ignored", path);
+            continue;
+        }
+
+        // Create video from abs_path, while the path is canonicalized - i.e.,
+        // we do not have to canonicalize it here
+        if let Ok(mut video) = Video::new(&abs_path) {
             video.move_to_working_dir()?;
             videos.push(video);
             continue;
@@ -24,9 +39,9 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
         warn!("{:?} is not a valid video file: Ignored", path)
     }
 
-    // If no videos have been submited: collect videos from working (sub)
+    // If the function was called with an empty list of videos, collect videos from working (sub)
     // directories
-    if videos.is_empty() {
+    if in_videos.is_empty() {
         for dir_kind in [
             DirKind::Root,
             DirKind::Encoded,
@@ -41,7 +56,7 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
     }
 
     if videos.is_empty() {
-        info!("No videos found :(");
+        info!("No videos to process");
     } else {
         videos.sort();
     }
