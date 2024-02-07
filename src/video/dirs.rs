@@ -1,17 +1,23 @@
 use super::cfg;
 
 use anyhow::{anyhow, Context};
+use const_format::formatcp;
 use log::*;
 use once_cell::sync::OnceCell;
-use std::{cmp::Eq, collections::HashMap, fmt, fs, path::PathBuf};
+use std::{
+    cmp::Eq,
+    collections::HashMap,
+    fmt, fs,
+    path::{PathBuf, MAIN_SEPARATOR},
+};
 
-pub const DEFAULT_WORKING_DIR: &str = "OTR";
+pub const OTR_DEFAULT_DIR: &str = "OTR";
 
 const SUB_PATH_ROOT: &str = "";
 const SUB_PATH_ENCODED: &str = "Encoded";
 const SUB_PATH_DECODED: &str = "Decoded";
 const SUB_PATH_CUT: &str = "Cut";
-const SUB_PATH_ARCHIVE: &str = "Decoded/Archive";
+const SUB_PATH_ARCHIVE: &str = formatcp!("{}{}Archive", SUB_PATH_DECODED, MAIN_SEPARATOR);
 
 /// Directory types
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -35,7 +41,7 @@ impl fmt::Display for DirKind {
 }
 impl DirKind {
     /// Relative path for each directory kind
-    pub fn relative_path<'a>(&self) -> &'a str {
+    fn relative_path<'a>(&self) -> &'a str {
         match self {
             DirKind::Root => SUB_PATH_ROOT,
             DirKind::Encoded => SUB_PATH_ENCODED,
@@ -46,9 +52,39 @@ impl DirKind {
     }
 }
 
+/// Temporary/cache directory of otr. It is <CACHE_DIR_OF_YOUR_OS>/OTR. The
+/// determination is only done once. The result is stored in a static variable
+pub fn tmp_dir() -> anyhow::Result<&'static PathBuf> {
+    static TMP_DIR: OnceCell<PathBuf> = OnceCell::new();
+    TMP_DIR.get_or_try_init(|| {
+        let dir = if let Some(tmp_dir) = dirs::cache_dir() {
+            trace!("Cache directory determined: Assemble temp directory");
+            let tmp_dir = tmp_dir.join(OTR_DEFAULT_DIR);
+
+            // Create temp directory (if it does not exist)
+            fs::create_dir_all(&tmp_dir).with_context(|| {
+                format!(
+                    "Could not create temp directory \"{}\"",
+                    tmp_dir.as_path().display()
+                )
+            })?;
+
+            tmp_dir
+        } else {
+            trace!("Cache directory could not be determined");
+            return Err(anyhow!("Temp directory could not be determined"));
+        };
+
+        debug!("Temp directory: {:?}", dir);
+
+        Ok(dir)
+    })
+}
+
 /// Working sub directories (i.e., the sub directories for encoded, decoded, cut
 /// etc. videos). The directory paths are determined once only and stored in a
-/// static variable.
+/// static variable. While doing so, the directories are created if they do not
+/// exist
 pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
     fn working_sub_dir_create() -> anyhow::Result<&'static HashMap<DirKind, PathBuf>> {
         static WORKING_SUB_DIRS: OnceCell<HashMap<DirKind, PathBuf>> = OnceCell::new();
@@ -63,26 +99,23 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
                 DirKind::Archive,
             ] {
                 let sub_dir = working_dir.join(dir_kind.relative_path());
-                fs::create_dir_all(&sub_dir)
-                    .with_context(|| format!("could not create sub directory {:?}", sub_dir))?;
+                fs::create_dir_all(&sub_dir).with_context(|| {
+                    format!("Could not create sub directory \"{}\"", sub_dir.display())
+                })?;
                 kind_to_path.insert(dir_kind, sub_dir);
             }
             Ok(kind_to_path)
         })
     }
 
-    let dirs = working_sub_dir_create().with_context(|| {
-        format!(
-            "could not determine sub directory of kind {:?}",
-            kind.to_string()
-        )
-    })?;
+    let dirs = working_sub_dir_create()
+        .with_context(|| format!("Could not determine sub directory of kind \"{}\"", kind))?;
 
     if let Some(path) = dirs.get(kind) {
         return Ok(path);
     }
     Err(anyhow!(
-        "sub directory of kind {:?} not found",
+        "Sub directory of kind \"{}\" not found",
         kind.to_string()
     ))
 }
@@ -90,7 +123,7 @@ pub fn working_sub_dir(kind: &DirKind) -> anyhow::Result<&'static PathBuf> {
 /// (Root) working directory. It is set to the working dir path which was
 /// retrieved from the configuration. If there is no dir configured, the default
 /// working dir is used, which is <VIDEO_DIR_OF_YOUR_OS>/OTR. The determination
-/// is only done once. The result is stored in a static variable.
+/// is only done once. The result is stored in a static variable
 pub fn working_dir() -> anyhow::Result<&'static PathBuf> {
     static WORKING_DIR: OnceCell<PathBuf> = OnceCell::new();
     WORKING_DIR.get_or_try_init(|| {
@@ -102,7 +135,7 @@ pub fn working_dir() -> anyhow::Result<&'static PathBuf> {
 
             if let Some(video_dir) = dirs::video_dir() {
                 trace!("Video directory determined: Assemble default working directory");
-                video_dir.join(DEFAULT_WORKING_DIR)
+                video_dir.join(OTR_DEFAULT_DIR)
             } else {
                 trace!("Video directory could not be determined");
                 return Err(anyhow!("Working directory could not be determined"));

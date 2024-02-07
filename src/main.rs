@@ -28,7 +28,7 @@ fn process_videos() -> anyhow::Result<()> {
         // Print message for already cut videos
         .map(|video| {
             if cli::is_process_command() && video.is_processed() {
-                info!("Processed already: {:?}", video.file_name());
+                info!("Processed already: \"{}\"", video.file_name());
             }
             video
         })
@@ -48,7 +48,15 @@ fn process_videos() -> anyhow::Result<()> {
         .into_par_iter()
         .map(|video| {
             if cli::is_cut_command() || cli::is_process_command() {
-                video.cut(cli::cutlist_access_type(), cli::min_cutlist_rating());
+                video.cut(
+                    cli::cutlist_access_type(),
+                    if cli::is_cut_command() {
+                        cli::cutlist_rating()
+                    } else {
+                        None
+                    },
+                    cli::min_cutlist_rating(),
+                );
             }
             video
         })
@@ -59,7 +67,7 @@ fn process_videos() -> anyhow::Result<()> {
         .iter()
         .fold(Ok(()), |res, video| {
             if let Some(err) = video.error() {
-                error!("{}:\n{:?}\n", video.file_name(), err);
+                error!("\"{}\":\n{:?}\n", video.file_name(), err);
                 Err(anyhow!("An error occurred during processing of OTR videos"))
             } else {
                 res
@@ -86,6 +94,14 @@ fn main() {
         .init()
         // Provoke dump in case of an error
         .unwrap();
+
+    // Check if mkvmerge is properly installed
+    if cli::is_cut_command() || cli::is_process_command() {
+        if let Err(err) = video::check_mkvmerge() {
+            error!("{:?}", err.context("mkvmerge is required by otr for cutting videos. Make sure that MKVToolnix is properly installed and that the mkvmerge binary is in your path"));
+            std::process::exit(1);
+        }
+    }
 
     // Process video files (collect, decode and cut them)
     if process_videos().is_err() {

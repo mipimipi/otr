@@ -12,6 +12,56 @@ use std::{
 /// Name of configuration file
 const CFG_FILENAME: &str = "otr.json";
 
+/// Returns the access token for cutlist.at. In case an error occurred while
+/// reading the configuration data from the file, None is returned
+pub fn cutlist_at_access_token() -> Option<&'static str> {
+    match cfg_from_file() {
+        Ok(cfg) => {
+            if let Some(_cutting) = &cfg.cutting {
+                _cutting.cutlist_at_access_token.as_deref()
+            } else {
+                None
+            }
+        }
+        Err(err) => {
+            warn!(
+                "Cannot determine access token for cutlist.at from configuration: {:?}",
+                err
+            );
+            None
+        }
+    }
+}
+
+/// Returns the default cut list rating from the configuration file. In case an
+/// error occurred while reading the configuration data from the file, or no
+/// rating is set, 0 is returned
+pub fn cutlist_rating() -> CutlistRating {
+    match cfg_from_file() {
+        Ok(cfg) => {
+            if let Some(_cutting) = &cfg.cutting {
+                if let Some(_rating) = _cutting.cutlist_rating {
+                    trace!("Cut list rating {} configured", _rating);
+                    _rating
+                } else {
+                    trace!("No cut list rating configured");
+                    0
+                }
+            } else {
+                trace!("No cutting section configured");
+                0
+            }
+        }
+        Err(err) => {
+            warn!(
+                "Cannot determine cut list rating from configuration: {:?}",
+                err
+            );
+            0
+        }
+    }
+}
+
 /// Returns the minimum cut list rating from the configuration file. In case an
 /// error occurred while reading the configuration data from the file, None is
 /// returned
@@ -21,6 +71,7 @@ pub fn min_cutlist_rating() -> Option<CutlistRating> {
             if let Some(_cutting) = &cfg.cutting {
                 _cutting.min_cutlist_rating
             } else {
+                trace!("No cutting section configured");
                 None
             }
         }
@@ -71,6 +122,33 @@ pub fn otr_access_data() -> Option<(&'static str, &'static str)> {
     }
 }
 
+/// Returns a flag that determines whether cut lists shall be suibmitted to
+/// cutlist.at from the configuration file. In case an  error occurred while
+/// reading the configuration data from the file, or if the flag is not
+/// maintained, false is returned
+pub fn submit_cutlists() -> bool {
+    match cfg_from_file() {
+        Ok(cfg) => {
+            if let Some(_cutting) = &cfg.cutting {
+                if let Some(_submit_cutlists) = _cutting.submit_cutlists {
+                    _submit_cutlists
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        Err(err) => {
+            trace!(
+                "Set submit_cutlists to false since it cannot be determined from configuration: {:?}",
+                err
+            );
+            false
+        }
+    }
+}
+
 /// Returns the working directory from configuration file. In case an error
 /// occurred while reading the configuration data from the file, None is
 /// returned
@@ -102,6 +180,9 @@ struct Decoding {
 #[derive(serde::Deserialize, Debug, Default)]
 struct Cutting {
     min_cutlist_rating: Option<u8>,
+    cutlist_rating: Option<u8>,
+    submit_cutlists: Option<bool>,
+    cutlist_at_access_token: Option<String>,
 }
 
 /// Retrieve the content of the configuration file. That is only done once. The
@@ -121,9 +202,10 @@ fn cfg_from_file() -> anyhow::Result<&'static CfgFromFile> {
 
         // Parse config file
         let file = File::open(&path)
-            .with_context(|| format!("could not open configuration file {:?}", path))?;
+            .with_context(|| format!("could not open configuration file \"{}\"", path.display()))?;
         let cfg = serde_json::from_reader(BufReader::new(file))
-            .with_context(|| format!("could not read configuration file {:?}", path))?;
+            .with_context(|| format!("could not read configuration file \"{}\"", path.display()))?;
+
         Ok(cfg)
     })
 }

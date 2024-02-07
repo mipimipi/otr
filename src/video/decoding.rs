@@ -101,8 +101,8 @@ where
     ) {
         remove_file(out_path).unwrap_or_else(|_| {
             panic!(
-                "Could not delete file {:?} after error when decoding video",
-                out_path
+                "Could not delete file \"{}\" after error when decoding video",
+                out_path.as_ref().display()
             )
         });
         return Err(err);
@@ -183,8 +183,12 @@ where
     P: AsRef<Path> + Debug,
 {
     // Output file
-    let mut out_file = File::create(&out_path)
-        .with_context(|| format!("Could not create result file {:?}", out_path))?;
+    let mut out_file = File::create(&out_path).with_context(|| {
+        format!(
+            "Could not create result file \"{}\"",
+            out_path.as_ref().display()
+        )
+    })?;
 
     // Thread handle to be able to wait until all threads are done
     let mut thread_handles = vec![];
@@ -236,13 +240,16 @@ where
                 dec_hash_sender.send(chunk.clone()).unwrap();
                 // write content to output file
                 out_file.write_all(&chunk).with_context(|| {
-                    format!("Could not write to decoded video file {:?}", out_path,)
+                    format!(
+                        "Could not write to decoded video file \"{}\"",
+                        out_path.as_ref().display(),
+                    )
                 })?;
             }
             Err(_) => {
                 return Err(anyhow!(
-                    "Could not create decoded video file {:?}",
-                    out_path
+                    "Could not create decoded video file \"{}\"",
+                    out_path.as_ref().display()
                 ));
             }
         }
@@ -494,7 +501,7 @@ fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTR
     // Check if all parameters are there
     for key in must_have {
         if params.get(key).is_none() {
-            return Err(anyhow!("Parameter {:?} could not be extracted", key));
+            return Err(anyhow!("Parameter \"{}\" could not be extracted", key));
         }
     }
 

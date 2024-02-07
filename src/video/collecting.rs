@@ -25,7 +25,7 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
 
         // Check if path exists
         if !abs_path.exists() {
-            warn!("{:?} does not exist: Ignored", path);
+            warn!("\"{}\" does not exist: Ignored", path.display());
             continue;
         }
 
@@ -36,7 +36,7 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
             videos.push(video);
             continue;
         }
-        warn!("{:?} is not a valid video file: Ignored", path)
+        warn!("\"{}\" is not a valid video file: Ignored", path.display())
     }
 
     // If the function was called with an empty list of videos, collect videos from working (sub)
@@ -49,7 +49,7 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
             DirKind::Cut,
         ] {
             videos.append(&mut collect_videos_from_dir(&dir_kind).context(format!(
-                "Could not retrieve videos from '{:?}' sub directory",
+                "Could not retrieve videos from \"{}\" sub directory",
                 &dir_kind
             ))?);
         }
@@ -68,14 +68,14 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
 fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
     let dir = dirs::working_sub_dir(dir_kind)
-        .context(format!("Could determine '{:?}' directory", &dir_kind))?;
+        .context(format!("Could determine \"{}\" directory", &dir_kind))?;
 
     if !dir.is_dir() {
-        return Err(anyhow!("{:?} is not a directory: Ignored", dir));
+        return Err(anyhow!("\"{}\" is not a directory: Ignored", dir.display()));
     }
 
     for file in
-        fs::read_dir(dir).with_context(|| format!("Could not read '{:?}' directory", &dir_kind))?
+        fs::read_dir(dir).with_context(|| format!("Could not read \"{}\" directory", &dir_kind))?
     {
         let file_ref = file.as_ref().unwrap();
 
@@ -89,7 +89,10 @@ fn collect_videos_from_dir(dir_kind: &DirKind) -> anyhow::Result<Vec<Video>> {
                 videos.push(video);
             }
             Err(_) => {
-                warn!("{:?} is not a valid video file: Ignored", &file_ref.path());
+                warn!(
+                    "\"{}\" is not a valid video file: Ignored",
+                    &file_ref.path().display()
+                );
                 continue;
             }
         }

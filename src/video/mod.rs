@@ -5,8 +5,8 @@ mod decoding;
 mod dirs;
 
 pub use collecting::collect;
-pub use cutting::CutlistAccessType;
-pub use cutting::CutlistRating;
+pub use cutting::{check_mkvmerge, CutlistAccessType, CutlistID, CutlistRating};
+use cutting::{CutError, CutlistCtrl};
 
 use anyhow::{anyhow, Context};
 use dirs::DirKind;
@@ -177,9 +177,10 @@ impl Video {
     pub fn cut(
         &mut self,
         cutlist_access: CutlistAccessType,
+        cutlist_rating: Option<CutlistRating>,
         min_cutlist_rating: Option<CutlistRating>,
     ) {
-        if let Err(err) = self._cut(cutlist_access, min_cutlist_rating) {
+        if let Err(err) = self._cut(cutlist_access, cutlist_rating, min_cutlist_rating) {
             self.e = Some(err)
         }
     }
@@ -256,7 +257,10 @@ impl Video {
                 }
             }
         }
-        Err(anyhow!("{:?} is not a valid video file", path.into()))
+        Err(anyhow!(
+            "{} is not a valid video file",
+            path.into().display()
+        ))
     }
 
     // Changes the videos to the next status (i.e., if its in status encoded,
@@ -281,52 +285,59 @@ impl Video {
     fn _cut(
         &mut self,
         cutlist_access: CutlistAccessType,
+        cutlist_rating: Option<CutlistRating>,
         min_cutlist_rating: Option<CutlistRating>,
     ) -> anyhow::Result<()> {
-        // nothing to do if video is not in status "decoded"
+        // Nothing to do if video is not in status "decoded"
         if self.status() != Status::Decoded {
             return Ok(());
         }
 
-        info!("Cutting {:?} ...", self.file_name());
+        info!("Cutting \"{}\" ...", self.file_name());
 
-        // Execute cutting of video
-        if let Err(err) = cutting::cut(
+        // Cut video and move cut video to corresponding directory
+        match cutting::cut(
             &self,
             self.next_path()?,
-            cutlist_access,
-            min_cutlist_rating.or_else(cfg::min_cutlist_rating),
+            dirs::tmp_dir()?,
+            &CutlistCtrl {
+                access_type: cutlist_access,
+                min_rating: min_cutlist_rating.or_else(cfg::min_cutlist_rating),
+                rating: cutlist_rating.unwrap_or(cfg::cutlist_rating()),
+                submit: cfg::submit_cutlists(),
+                access_token: cfg::cutlist_at_access_token(),
+            },
         ) {
-            return match err {
-                cutting::CutError::NoCutlist => Err(anyhow!("No cut list exists for video")),
-                cutting::CutError::Any(err) => Err(err.context("Could not cut video")),
-                cutting::CutError::Default => {
-                    Err(anyhow!("Could not cut video for an unknown reason"))
-                }
-            };
+            Ok(()) => {
+                // In case the video was cut suceesfully and a (potential)
+                // submission of the cut list was done successfully, move decoded
+                // video to archive directory and return with Ok
+                self.move_to_archive_dir()?;
+
+                // Update video (status, path)
+                self.change_to_next_status()?;
+
+                info!("Cut \"{}\"", self.file_name());
+
+                Ok(())
+            }
+            Err(CutError::CutlistSubmissionFailed(err)) => {
+                // In case the video was cut successfully, but submission of cut
+                // list failed, move decoded video to archive directory and
+                // return with Error
+                self.move_to_archive_dir()?;
+
+                // Update video (status, path)
+                self.change_to_next_status()?;
+
+                info!("Cut \"{}\"", self.file_name());
+
+                Err(err.context("Video was cut, but cut list could not be submitted to cutlist.at"))
+            }
+            Err(CutError::Any(err)) => Err(err.context("Could not cut video")),
+            Err(CutError::Default) => Err(anyhow!("Could not cut video for an unknown reason")),
+            Err(CutError::NoCutlist) => Err(anyhow!("No cut list exists for video")),
         }
-
-        // In case of having cut the video successfully, move decoded video to
-        // archive directory. Otherwise return with error
-        if let Err(err) = fs::rename(
-            &self.p,
-            dirs::working_sub_dir(&DirKind::Archive)
-                .unwrap()
-                .join(self.file_name()),
-        ) {
-            error!(
-                "{:?}",
-                anyhow!(err)
-                    .context("Could not move video to archive directory after successful cutting")
-            );
-        }
-
-        // Update video (status, path)
-        self.change_to_next_status()?;
-
-        info!("Cut {:?}", self.file_name());
-
-        Ok(())
     }
 
     /// Decode an encoded video (private decode function which is wrapped by its
@@ -345,12 +356,12 @@ impl Video {
                 return Err(anyhow!("OTR user and password required to decode video"));
             };
 
-        info!("Decoding {:?} ...", self.file_name());
+        info!("Decoding {} ...", self.file_name());
 
         // Execute decoding
         decoding::decode(&self, &self.next_path()?, user, password)?;
 
-        info!("Decoded {:?}", self.file_name());
+        info!("Decoded {}", self.file_name());
 
         // Update video (status, path)
         self.change_to_next_status()?;
@@ -358,7 +369,30 @@ impl Video {
         Ok(())
     }
 
-    /// Moves a video file to the working sub directory corresponding to the status
+    // Move decoded video to archive directory
+    fn move_to_archive_dir(&self) -> anyhow::Result<()> {
+        // Nothing to do if video is not in status "decoded"
+        if self.status() != Status::Decoded {
+            return Ok(());
+        }
+
+        if let Err(err) = fs::rename(
+            &self.p,
+            dirs::working_sub_dir(&DirKind::Archive)
+                .unwrap()
+                .join(self.file_name()),
+        ) {
+            error!(
+                "{:?}",
+                anyhow!(err)
+                    .context("Could not move video to archive directory after successful cutting")
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Move a video file to the working sub directory corresponding to the status
     /// of the video. The Video (i.e., its path) is changed accordingly.
     fn move_to_working_dir(&mut self) -> anyhow::Result<()> {
         // Since video path was already checked for compliance before, it is OK to
@@ -366,6 +400,7 @@ impl Video {
         let source_dir = self.p.parent().unwrap();
 
         let target_dir = dirs::working_sub_dir(&(self.status()).as_dir_kind())?;
+
         let target_path = target_dir.join(self.file_name());
 
         // Nothing to do if video is already in correct directory
@@ -402,9 +437,10 @@ impl Video {
                 .unwrap()
                 .join(dirs::working_sub_dir(&(Status::Cut).as_dir_kind())?)
                 .join(self.file_name())
-                .with_extension(
-                    "cut".to_string() + "." + self.p.extension().unwrap().to_str().unwrap(),
-                )),
+                .with_extension(format!(
+                    "cut.{}",
+                    self.p.extension().unwrap().to_str().unwrap()
+                ))),
             _ => Ok(self.p.to_path_buf()),
         }
     }

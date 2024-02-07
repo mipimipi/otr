@@ -3,38 +3,83 @@ use ini::Ini;
 use lazy_static::lazy_static;
 use log::*;
 use regex::Regex;
+use reqwest::{
+    blocking::{multipart, Client},
+    StatusCode,
+};
 use serde::Deserialize;
 use std::{
     cmp::{self, Eq, PartialEq},
     collections::HashMap,
     convert::TryFrom,
+    env,
     fmt::{self, Debug, Display, Write},
     fs,
     hash::Hash,
     path::Path,
-    str::{self, FromStr},
+    str,
 };
 
-/// URI's for the retrieval of cut list data from the provider cutlist.at
+/// URI's for retrieving and submitting cut list data from/to cutlist.at
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
 const CUTLIST_RETRIEVE_LIST_DETAILS_URI: &str = "http://cutlist.at/getfile.php?id=";
+const CUTLIST_SUBMIT_LIST_URI: &str = "http://cutlist.at";
 
 /// cutlist.at (error) messages
 const CUTLIST_AT_ERROR_ID_NOT_FOUND: &str = "Not found.";
 
 /// Names for sections and attributes for the INI file of cutlist.at
-const CUTLIST_ITEM_GENERAL_SECTION: &str = "General";
-const CUTLIST_ITEM_NUM_OF_CUTS: &str = "NoOfCuts";
-const CUTLIST_ITEM_META_SECTION: &str = "Meta";
-const CUTLIST_ITEM_CUTLIST_ID: &str = "CutlistId";
-const CUTLIST_ITEM_CUT_SECTION: &str = "Cut";
+const CUTLIST_GENERAL_SECTION: &str = "General";
+const CUTLIST_INFO_SECTION: &str = "Info";
+const CUTLIST_META_SECTION: &str = "Meta";
+const CUTLIST_APPLICATION: &str = "Application";
+const CUTLIST_VERSION: &str = "Version";
+const CUTLIST_INTENDED_CUT_APP: &str = "IntendedCutApplicationName";
+const CUTLIST_APPLY_TO_FILE: &str = "ApplyToFile";
+const CUTLIST_ORIG_FILE_SIZE: &str = "OriginalFileSizeBytes";
+const CUTLIST_NUM_OF_CUTS: &str = "NoOfCuts";
+const CUTLIST_ID: &str = "CutlistId";
+const CUTLIST_CUT_SECTION: &str = "Cut";
+const CUTLIST_RATING_BY_AUTHOR: &str = "RatingByAuthor";
 const CUTLIST_ITEM_TIME_START: &str = "Start";
 const CUTLIST_ITEM_TIME_DURATION: &str = "Duration";
 const CUTLIST_ITEM_FRAMES_START: &str = "StartFrame";
 const CUTLIST_ITEM_FRAMES_DURATION: &str = "DurationFrames";
 
+// Regular expressions
+lazy_static! {
+    // Parse cut list ID from cutlist.at's response to the submission request
+    static ref RE_CUTLIST_ID: Regex =
+        Regex::new(r"^ID=(\d+).*").unwrap();
+}
+
+/// Display an option: Print value as string in case of it is Some(value),
+/// "unknown" otherwise
+macro_rules! display_option {
+    ($id:expr) => {
+        if let Some(_id) = $id {
+            format!("{}", _id)
+        } else {
+            "unknown".to_string()
+        }
+    };
+}
+
 /// Alias for cut list rating
 pub type Rating = u8;
+
+/// Alias for cut list ID
+pub type ID = u64;
+
+/// Fields that control processing of cut lists. Structure is made for the API
+/// of this crate
+pub struct Ctrl<'a> {
+    pub submit: bool,
+    pub rating: Rating,
+    pub min_rating: Option<Rating>,
+    pub access_token: Option<&'a str>,
+    pub access_type: AccessType<'a>,
+}
 
 /// Type of cut list intervals - i.e., whether they are based on frame numbers or
 /// time
@@ -73,13 +118,13 @@ pub enum AccessType<'a> {
     Auto,            // retrieve cut lists from provider and select one automatically
     Direct(&'a str), // direct access to cut list (as string consisting of intervals)
     File(&'a Path),  // retrieve cut list from file
-    ID(u64),         // retrieve cutlist from provider by ID
+    ID(ID),          // retrieve cutlist from provider by ID
 }
 
 /// Header data to retrieve cut lists from a provider
 #[derive(Default)]
 pub struct ProviderHeader {
-    id: u64,
+    id: ID,
     rating: f64,
 }
 impl Eq for ProviderHeader {}
@@ -105,7 +150,7 @@ impl PartialOrd for ProviderHeader {
     }
 }
 impl ProviderHeader {
-    pub fn id(&self) -> u64 {
+    pub fn id(&self) -> ID {
         self.id
     }
 }
@@ -125,7 +170,7 @@ pub fn headers_from_provider(
     }
     #[derive(Debug, Deserialize)]
     struct RawHeader {
-        id: u64,
+        id: ID,
         rating: String,
         #[serde(rename = "ratingbyauthor")]
         rating_by_author: String,
@@ -159,10 +204,9 @@ pub fn headers_from_provider(
         // Do not accept cut lists with errors
         let num_errs = raw_header.errors.parse::<i32>();
         if num_errs.is_err() || num_errs.unwrap() > 0 {
-            trace!(
+            warn!(
                 "\"{}\": Cut list {} has errors: Ignored",
-                file_name,
-                raw_header.id
+                file_name, raw_header.id
             );
             continue;
         }
@@ -212,10 +256,10 @@ impl Item {
         // convert start and duration to floating point
         let start_f = start
             .parse::<f64>()
-            .with_context(|| format!("Could not parse {:?} to floating point", start))?;
+            .with_context(|| format!("Could not parse \"{}\" to floating point", start))?;
         let duration_f = duration
             .parse::<f64>()
-            .with_context(|| format!("Could not parse {:?} to floating point", duration))?;
+            .with_context(|| format!("Could not parse \"{}\" to floating point", duration))?;
 
         // Cut list items with zero duration (i.e., start and end point are
         // equal) make no sense
@@ -232,7 +276,7 @@ impl Item {
     // Create a cut list item from a cut/interval from an ini structure
     fn from_ini(cutlist_ini: &Ini, cut_no: i32, kind: &Kind) -> anyhow::Result<Option<Item>> {
         let cut = cutlist_ini
-            .section(Some(format!("{}{}", CUTLIST_ITEM_CUT_SECTION, cut_no)))
+            .section(Some(format!("{}{}", CUTLIST_CUT_SECTION, cut_no)))
             .with_context(|| format!("Could not find section for cut no {}", cut_no))?;
         Item::new(
             cut.get(item_attr_start(kind)).with_context(|| {
@@ -279,20 +323,149 @@ lazy_static! {
 /// Cut list, consisting of intervals of frame numbers and/or times. At least one
 /// of both must be there
 #[derive(Default)]
-pub struct CutList {
-    items: HashMap<Kind, Vec<Item>>,
+pub struct Cutlist {
+    id: Option<ID>,
+    items: HashMap<Kind, Vec<Item>>, // intervals/cuts of cut list
 }
-impl FromStr for CutList {
-    type Err = anyhow::Error;
 
-    /// Creates a cut list from an intervals string, i.e. "frames:[...]" or
-    /// "[time:[...]"
-    fn from_str(intervals: &str) -> Result<Self, Self::Err> {
-        if !RE_INTERVALS.is_match(intervals) {
-            return Err(anyhow!("'{}' is not a valid intervals string", intervals));
+/// Create a cut list from an ini structure
+impl TryFrom<&Ini> for Cutlist {
+    type Error = anyhow::Error;
+
+    fn try_from(cutlist_ini: &Ini) -> Result<Self, Self::Error> {
+        let mut cutlist = Cutlist {
+            // Get cut list id. This is done in a separate step early in the
+            // parsing process of the entire INI structure to be able to use the
+            // id in error messages
+            id: match cutlist_ini
+                .section(Some(CUTLIST_META_SECTION))
+                .with_context(|| {
+                    format!(
+                        "Could not find section '{}' in cutlist",
+                        CUTLIST_META_SECTION
+                    )
+                })?
+                .get(CUTLIST_ID)
+                .with_context(|| format!("Could not find attribute \"{}\" in cutlist", CUTLIST_ID))
+            {
+                Ok(_id) => {
+                    Some(str::parse(_id).context(
+                        "Cut list ID does not have the correct format (must be a number)",
+                    )?)
+                }
+                _ => None,
+            },
+            ..Default::default()
+        };
+
+        // Get number of cuts
+        let num_cuts = cutlist_ini
+            .section(Some(CUTLIST_GENERAL_SECTION))
+            .with_context(|| {
+                format!(
+                    "Could not find section \"{}\" in cutlist ID={}",
+                    CUTLIST_GENERAL_SECTION,
+                    display_option!(cutlist.id)
+                )
+            })?
+            .get(CUTLIST_NUM_OF_CUTS)
+            .with_context(|| {
+                format!(
+                    "Could not find attribute \"{}\" in cutlist ID={}",
+                    CUTLIST_NUM_OF_CUTS,
+                    display_option!(cutlist.id)
+                )
+            })?
+            .parse::<i32>()
+            .with_context(|| {
+                format!(
+                    "Could not parse attribute \"{}\" in cutlist ID={}",
+                    CUTLIST_NUM_OF_CUTS,
+                    display_option!(cutlist.id)
+                )
+            })?;
+
+        // Retrieve cuts from ini structure and create a cut list from them
+        for i in 0..num_cuts {
+            cutlist
+                .extend_from_ini_cut(cutlist_ini, i)
+                .with_context(|| {
+                    format!(
+                        "Could not read cuts of cut list ID={}",
+                        display_option!(cutlist.id)
+                    )
+                })?;
         }
 
-        let err_msg = format!("Cannot create cut list from '{}'", intervals);
+        cutlist
+            .validate()
+            .context("INI data does not represent a valid cut list")?;
+
+        Ok(cutlist)
+    }
+}
+
+/// Retrieve a cut list from a file
+impl TryFrom<&Path> for Cutlist {
+    type Error = anyhow::Error;
+
+    fn try_from(cutlist_file: &Path) -> Result<Self, Self::Error> {
+        Cutlist::try_from(
+            &Ini::load_from_str(&fs::read_to_string(cutlist_file).with_context(|| {
+                format!(
+                    "Could not read from cut list file \"{}\"",
+                    cutlist_file.display()
+                )
+            })?)
+            .with_context(|| {
+                format!(
+                    "Could not parse response for cutlist \"{}\" as INI",
+                    cutlist_file.display()
+                )
+            })?,
+        )
+        .context(format!(
+            "\"{}\" does not contain a valid cut list",
+            cutlist_file.display()
+        ))
+    }
+}
+
+/// Retrieve a cut list from a cutlist provider by cutlist id
+impl TryFrom<ID> for Cutlist {
+    type Error = anyhow::Error;
+
+    fn try_from(id: ID) -> Result<Self, Self::Error> {
+        // Retrieve cut list by ID
+        let response =
+            reqwest::blocking::get(CUTLIST_RETRIEVE_LIST_DETAILS_URI.to_string() + &id.to_string())
+                .with_context(|| format!("Did not get a response for requesting cutlist {}", id))?
+                .text()
+                .with_context(|| format!("Could not parse response for cutlist {} as text", id))?;
+        if response == CUTLIST_AT_ERROR_ID_NOT_FOUND {
+            return Err(anyhow!(
+                "Cut list with ID={} does not exist at provider",
+                id
+            ));
+        }
+
+        // Parse cut list
+        let cutlist_ini = Ini::load_from_str(&response)
+            .with_context(|| format!("Could not parse response for cutlist {} as INI", id))?;
+
+        Cutlist::try_from(&cutlist_ini)
+    }
+}
+
+impl Cutlist {
+    /// Creates a cut list from an intervals string, i.e. "frames:[...]" or
+    /// "[time:[...]"
+    pub fn try_from_intervals(intervals: &str) -> anyhow::Result<Cutlist> {
+        if !RE_INTERVALS.is_match(intervals) {
+            return Err(anyhow!("\"{}\" is not a valid intervals string", intervals));
+        }
+
+        let err_msg = format!("Cannot create cut list from \"{}\"", intervals);
 
         let caps_intervals = RE_INTERVALS
             .captures(intervals)
@@ -308,7 +481,7 @@ impl FromStr for CutList {
 
         // An intervals string can either be based on frame numbers or time, but
         // not both
-        let mut cutlist: CutList = Default::default();
+        let mut cutlist = Cutlist::default();
         cutlist.items.insert(kind.clone(), vec![]);
         let items = cutlist.items.get_mut(&kind).unwrap();
 
@@ -338,138 +511,94 @@ impl FromStr for CutList {
             })
         }
 
-        Ok(cutlist)
-    }
-}
-
-/// Create a cut list from an ini structure
-impl TryFrom<&Ini> for CutList {
-    type Error = anyhow::Error;
-
-    fn try_from(cutlist_ini: &Ini) -> Result<Self, Self::Error> {
-        // Get cut list id
-        fn cutlist_id(cutlist: &Ini) -> anyhow::Result<&str> {
-            cutlist
-                .section(Some(CUTLIST_ITEM_META_SECTION))
-                .with_context(|| {
-                    format!(
-                        "Could not find section '{}' in cutlist",
-                        CUTLIST_ITEM_META_SECTION
-                    )
-                })?
-                .get(CUTLIST_ITEM_CUTLIST_ID)
-                .with_context(|| {
-                    format!(
-                        "Could not find attribute '{}' in cutlist",
-                        CUTLIST_ITEM_CUTLIST_ID
-                    )
-                })
-        }
-
-        let id = match cutlist_id(cutlist_ini) {
-            Ok(id) => Some(id),
-            _ => None,
-        };
-
-        // Get number of cuts
-        let num_cuts = cutlist_ini
-            .section(Some(CUTLIST_ITEM_GENERAL_SECTION))
-            .with_context(|| {
-                format!(
-                    "Could not find section '{}' in cutlist '{}'",
-                    CUTLIST_ITEM_GENERAL_SECTION,
-                    id.unwrap_or("unknown")
-                )
-            })?
-            .get(CUTLIST_ITEM_NUM_OF_CUTS)
-            .with_context(|| {
-                format!(
-                    "Could not find attribute '{}' in cutlist '{}'",
-                    CUTLIST_ITEM_NUM_OF_CUTS,
-                    id.unwrap_or("unknown")
-                )
-            })?
-            .parse::<i32>()
-            .with_context(|| {
-                format!(
-                    "Could not parse attribute '{}' in cutlist '{}'",
-                    CUTLIST_ITEM_NUM_OF_CUTS,
-                    id.unwrap_or("unknown")
-                )
-            })?;
-
-        // Retrieve cuts from ini structure and create a cut list from them
-        let mut cutlist: CutList = Default::default();
-        for i in 0..num_cuts {
-            cutlist
-                .extend_from_ini_cut(cutlist_ini, i)
-                .with_context(|| {
-                    format!(
-                        "Could not read cuts of cut list '{}'",
-                        id.unwrap_or("unknown")
-                    )
-                })?;
-        }
+        cutlist
+            .validate()
+            .context(format!("{} does not represent a valid cut list", intervals))?;
 
         Ok(cutlist)
     }
-}
 
-/// Retrieve a cut list from a file
-impl TryFrom<&Path> for CutList {
-    type Error = anyhow::Error;
-
-    fn try_from(cutlist_file: &Path) -> Result<Self, Self::Error> {
-        CutList::try_from(
-            &Ini::load_from_str(&fs::read_to_string(cutlist_file).with_context(|| {
-                format!(
-                    "Could not read from cut list file '{}'",
-                    cutlist_file.display()
-                )
-            })?)
-            .with_context(|| {
-                format!(
-                    "Could not parse response for cutlist '{}' as INI",
-                    cutlist_file.display()
-                )
-            })?,
-        )
-    }
-}
-
-/// Retrieve a cut list from a cutlist provider by cutlist id
-impl TryFrom<u64> for CutList {
-    type Error = anyhow::Error;
-
-    fn try_from(id: u64) -> Result<Self, Self::Error> {
-        // Retrieve cut list by ID
-        let response =
-            reqwest::blocking::get(CUTLIST_RETRIEVE_LIST_DETAILS_URI.to_string() + &id.to_string())
-                .with_context(|| format!("Did not get a response for requesting cutlist {}", id))?
-                .text()
-                .with_context(|| format!("Could not parse response for cutlist {} as text", id))?;
-        if response == CUTLIST_AT_ERROR_ID_NOT_FOUND {
-            return Err(anyhow!(
-                "Cut list with ID={} does not exist at provider",
-                id
-            ));
-        }
-
-        // Parse cut list
-        let cutlist_ini = Ini::load_from_str(&response)
-            .with_context(|| format!("Could not parse response for cutlist {} as INI", id))?;
-
-        CutList::try_from(&cutlist_ini)
-    }
-}
-
-impl CutList {
     pub fn kinds(&self) -> Vec<Kind> {
         let mut kinds: Vec<Kind> = vec![];
         for kind in self.items.keys() {
             kinds.push(kind.clone());
         }
         kinds
+    }
+
+    /// Submit cut list to cutlist.at and set the cut list ID in self from the
+    /// response
+    pub fn submit<P, Q>(
+        &mut self,
+        video_path: P,
+        tmp_dir: Q,
+        access_token: &str,
+        rating: Rating,
+    ) -> anyhow::Result<()>
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
+    {
+        let file_name = video_path.as_ref().file_name().unwrap().to_str().unwrap();
+        let cutlist_file = tmp_dir.as_ref().join(format!("{}.cutlist", file_name));
+
+        // Generate INI structure and write it to a file
+        self.to_ini(video_path.as_ref(), rating)?
+            .write_to_file(cutlist_file.as_path())
+            .context(format!(
+                "Could not write cut list to file \"{}\"",
+                cutlist_file.display()
+            ))?;
+
+        // Upload file to cutlist.at
+        let response = Client::new()
+            .post(format!("{}/{}/", CUTLIST_SUBMIT_LIST_URI, access_token))
+            .multipart(
+                multipart::Form::new()
+                    .file("userfile[]", cutlist_file)
+                    .context("Could not create cut list submission request")?,
+            )
+            .send()
+            .with_context(|| "Did not get a response for cut list submission request")?;
+
+        // Process response
+        match response.status() {
+            StatusCode::OK => {
+                self.id =
+                    Some(
+                        str::parse(
+                            RE_CUTLIST_ID
+                                .captures(&response.text().with_context(|| {
+                                    "Could not parse cut list submission response"
+                                })?)
+                                .unwrap()
+                                .get(1)
+                                .unwrap()
+                                .as_str(),
+                        )
+                        .unwrap(),
+                    );
+
+                info!(
+                    "Submitted cut list ID {} for \"{}\"",
+                    self.id.unwrap(),
+                    file_name,
+                );
+
+                Ok(())
+            }
+            _ => {
+                let resp_txt = response
+                    .text()
+                    .with_context(|| "Could not parse cut list submission response")?;
+
+                Err(anyhow!(if resp_txt.is_empty() {
+                    "Received no response text for submission request".to_string()
+                } else {
+                    resp_txt
+                }))
+            }
+        }
     }
 
     /// Creates the split string that mkvmerge requires to cut a video
@@ -503,10 +632,114 @@ impl CutList {
         Ok(split_str)
     }
 
+    // Retrieves cut number cut_no from ini structure, creates a cut list item
+    // from it and appends it to the cut list
+    fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: i32) -> anyhow::Result<()> {
+        if cut_no == 0 {
+            // In case of the first cut, it is checked which kinds (frame numbers
+            // and/or time) are supported. The corresponding item arrays are
+            // created respectively
+            for kind in [&Kind::Frames, &Kind::Time] {
+                if let Ok(Some(item)) = Item::from_ini(cutlist_ini, cut_no, kind) {
+                    self.items.insert(kind.clone(), vec![item]);
+                }
+            }
+        } else {
+            for kind in self.kinds() {
+                if let Some(item) = Item::from_ini(cutlist_ini, cut_no, &kind).context(format!(
+                    "Cut no {} does not contain {} information, though the cut list supports that",
+                    cut_no, kind,
+                ))? {
+                    self.items.get_mut(&kind).unwrap().push(item);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns true if cut list contains frames intervals, otherwise false
+    fn is_kind_frames(&self) -> bool {
+        self.items.contains_key(&Kind::Frames)
+    }
+
+    /// Returns true if cut list contains time intervals, otherwise false
+    fn is_kind_time(&self) -> bool {
+        self.items.contains_key(&Kind::Time)
+    }
+
+    /// Length of cut list (i.e., the number of cuts). If the cut list has both,
+    /// frames and time intervals/cuts, the number of cuts must be equal, since
+    /// otherwise the cut list was invalid
+    fn len(&self) -> usize {
+        if self.is_kind_frames() {
+            return self.items.get(&Kind::Frames).unwrap().len();
+        }
+        if self.is_kind_time() {
+            return self.items.get(&Kind::Time).unwrap().len();
+        }
+        0
+    }
+
+    /// Create an INI structure from a cut list. video_path and rating are
+    /// used to create the corresponding mandatory fields in the INI structure
+    fn to_ini<P>(&self, video_path: P, rating: Rating) -> anyhow::Result<Ini>
+    where
+        P: AsRef<Path>,
+    {
+        let mut cutlist_ini = Ini::new();
+        let num_cuts = self.len();
+        let file_name = video_path.as_ref().file_name().unwrap().to_str().unwrap();
+
+        // Section "[General]"
+        cutlist_ini
+            .with_section(Some(CUTLIST_GENERAL_SECTION))
+            .set(CUTLIST_APPLICATION, env!("CARGO_PKG_NAME"))
+            .set(CUTLIST_VERSION, env!("CARGO_PKG_VERSION"))
+            .set(CUTLIST_INTENDED_CUT_APP, "mkvmerge")
+            .set(CUTLIST_NUM_OF_CUTS, format!("{}", num_cuts))
+            .set(CUTLIST_APPLY_TO_FILE, file_name)
+            .set(
+                CUTLIST_ORIG_FILE_SIZE,
+                format!(
+                    "{}",
+                    fs::metadata(video_path.as_ref())
+                        .context("Cannot create INI structure for cut list")?
+                        .len()
+                ),
+            );
+
+        // Sections "[CutN]" for N=0,...,<number-of-cuts>-1
+        for i in 0..num_cuts {
+            for kind in self.items.keys() {
+                cutlist_ini
+                    .with_section(Some(format!("{}{}", CUTLIST_CUT_SECTION, i)))
+                    .set(
+                        item_attr_start(kind),
+                        format!("{}", self.items.get(kind).unwrap()[i].start),
+                    )
+                    .set(
+                        item_attr_duration(kind),
+                        format!(
+                            "{}",
+                            self.items.get(kind).unwrap()[i].end
+                                - self.items.get(kind).unwrap()[i].start,
+                        ),
+                    );
+            }
+        }
+
+        // Section "[Info]"
+        cutlist_ini
+            .with_section(Some(CUTLIST_INFO_SECTION))
+            .set(CUTLIST_RATING_BY_AUTHOR, format!("{}", rating));
+
+        Ok(cutlist_ini)
+    }
+
     /// Checks if a cut list is valid - i.e., whether at least one intervals
     /// array exists, whether the intervals of an array do not overlap and
     /// whether the start is before the end of each interval
-    pub fn validate(&self) -> anyhow::Result<()> {
+    fn validate(&self) -> anyhow::Result<()> {
         if self.items.is_empty() {
             return Err(anyhow!("Cut list does not contain intervals"));
         }
@@ -531,38 +764,25 @@ impl CutList {
             Ok(())
         }
 
-        if self.items.contains_key(&Kind::Frames) {
+        // If cut list contains time and frames intervals, both must have the
+        // same number of items
+        if self.is_kind_frames()
+            && self.is_kind_time()
+            && self.items.get(&Kind::Frames).unwrap().len()
+                != self.items.get(&Kind::Time).unwrap().len()
+        {
+            return Err(anyhow!(
+                "Cut list has time and frames intervals, but the number of cuts differ"
+            ));
+        }
+
+        if self.is_kind_frames() {
             validate_intervals(&Kind::Frames, self.items.get(&Kind::Frames).unwrap())?;
         }
-        if self.items.contains_key(&Kind::Time) {
+        if self.is_kind_time() {
             validate_intervals(&Kind::Time, self.items.get(&Kind::Time).unwrap())?;
         }
 
-        Ok(())
-    }
-
-    // Retrieves cut number cut_no from ini structure, creates a cut list item
-    // from it and appends it to the cut list
-    fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: i32) -> anyhow::Result<()> {
-        if cut_no == 0 {
-            // In case of the first cut, it is checked which kinds (frame numbers
-            // and/or time) are supported. The corresponding item arrays are
-            // created respectively
-            for kind in [&Kind::Frames, &Kind::Time] {
-                if let Ok(Some(item)) = Item::from_ini(cutlist_ini, cut_no, kind) {
-                    self.items.insert(kind.clone(), vec![item]);
-                }
-            }
-        } else {
-            for kind in self.kinds() {
-                if let Some(item) = Item::from_ini(cutlist_ini, cut_no, &kind).context(format!(
-                    "Cut no {} does not contain {} information, though the cut list supprts that",
-                    cut_no, kind,
-                ))? {
-                    self.items.get_mut(&kind).unwrap().push(item);
-                }
-            }
-        }
         Ok(())
     }
 }
@@ -579,13 +799,13 @@ fn cut_str_to_f64(kind: &Kind, cut_str: &str) -> anyhow::Result<f64> {
     match kind {
         Kind::Frames => cut_str.parse::<f64>().with_context(|| {
             format!(
-                "Could not parse frames cut string {:?} to floating point",
+                "Could not parse frames cut string \"{}\" to floating point",
                 cut_str
             )
         }),
         Kind::Time => {
             if !RE_TIME.is_match(cut_str) {
-                return Err(anyhow!("'{}' is not a valid time cut string", cut_str));
+                return Err(anyhow!("\"{}\" is not a valid time cut string", cut_str));
             }
 
             let caps = RE_TIME

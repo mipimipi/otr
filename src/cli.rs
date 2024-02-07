@@ -1,4 +1,4 @@
-use crate::video::{CutlistAccessType, CutlistRating};
+use crate::video::{CutlistAccessType, CutlistID, CutlistRating};
 use clap::{Parser, Subcommand};
 use indoc::indoc;
 use once_cell::sync::OnceCell;
@@ -57,14 +57,27 @@ pub fn is_process_command() -> bool {
     false
 }
 
-/// Returns minimum cutlist rating
-pub fn min_cutlist_rating() -> Option<CutlistRating> {
+/// Returns cut list rating
+pub fn cutlist_rating() -> Option<CutlistRating> {
     match &args().command {
         Commands::Cut { rating, .. } => *rating,
         Commands::Decode { .. } => {
             panic!("Sub command 'decode' does not have cut list rating as parameter")
         }
-        Commands::Process { rating, .. } => *rating,
+        Commands::Process { .. } => {
+            panic!("Sub command 'process' does not have cut list rating as parameter")
+        }
+    }
+}
+
+/// Returns minimum cut list rating
+pub fn min_cutlist_rating() -> Option<CutlistRating> {
+    match &args().command {
+        Commands::Cut { min_rating, .. } => *min_rating,
+        Commands::Decode { .. } => {
+            panic!("Sub command 'decode' does not have minimum cut list rating as parameter")
+        }
+        Commands::Process { min_rating, .. } => *min_rating,
     }
 }
 
@@ -198,12 +211,19 @@ enum Commands {
             group = "input",
             help = "Identifier of a cut list at cutlist.at"
         )]
-        id: Option<u64>,
+        id: Option<CutlistID>,
         #[arg(
             long = "min-rating",
             value_name = "min_cut_list_rating",
             group = "input",
             help = "Minímum rating a cut list must have for being used to cut the video"
+        )]
+        min_rating: Option<CutlistRating>,
+        #[arg(
+            long = "rating",
+            value_name = "cut_list_rating",
+            requires = "cutlist",
+            help = "Rating of a self-created cut list"
         )]
         rating: Option<CutlistRating>,
         #[arg(name = "video", help = "Path of video to be cut")]
@@ -265,7 +285,7 @@ enum Commands {
             value_name = "min_cut_list_rating",
             help = "Minímum rating a cut list must have for being used to cut the video"
         )]
-        rating: Option<CutlistRating>,
+        min_rating: Option<CutlistRating>,
         videos: Vec<PathBuf>,
     },
 }
