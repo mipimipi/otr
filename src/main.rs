@@ -96,11 +96,9 @@ fn main() {
         .unwrap();
 
     // Check if mkvmerge is properly installed
-    if cli::is_cut_command() || cli::is_process_command() {
-        if let Err(err) = video::check_mkvmerge() {
-            error!("{:?}", err.context("mkvmerge is required by otr for cutting videos. Make sure that MKVToolnix is properly installed and that the mkvmerge binary is in your path"));
-            std::process::exit(1);
-        }
+    if cli::is_cut_command() || cli::is_process_command() && !video::mkvmerge_is_installed() {
+        error!("mkvmerge is required by otr for cutting videos. Make sure that MKVToolnix is properly installed and that the mkvmerge binary is in your path");
+        std::process::exit(1);
     }
 
     // Process video files (collect, decode and cut them)

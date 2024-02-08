@@ -5,7 +5,7 @@ mod decoding;
 mod dirs;
 
 pub use collecting::collect;
-pub use cutting::{check_mkvmerge, CutlistAccessType, CutlistID, CutlistRating};
+pub use cutting::{mkvmerge_is_installed, CutlistAccessType, CutlistID, CutlistRating};
 use cutting::{CutError, CutlistCtrl};
 
 use anyhow::{anyhow, Context};

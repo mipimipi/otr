@@ -13,7 +13,7 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     env,
-    fmt::{self, Debug, Display, Write},
+    fmt::{self, Debug, Display},
     fs,
     hash::Hash,
     path::Path,
@@ -51,6 +51,11 @@ lazy_static! {
     // Parse cut list ID from cutlist.at's response to the submission request
     static ref RE_CUTLIST_ID: Regex =
         Regex::new(r"^ID=(\d+).*").unwrap();
+    /// Reg exp for the intervals string
+    static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|time):((\[[^,]+,[^,]+\])+)$"#).unwrap();
+    /// Reg exp for the interval start/end of a cut list of kind "time"
+    static ref RE_TIME: Regex =
+        Regex::new(r#"^(\d+):([0-5]\d)+:([0-5]\d)+(\.(\d{0,6}))*$"#).unwrap();
 }
 
 /// Display an option: Print value as string in case of it is Some(value),
@@ -315,11 +320,6 @@ fn item_attr_duration(kind: &Kind) -> String {
     }
 }
 
-lazy_static! {
-    /// Reg exp for the intervals string
-    static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|time):((\[[^,]+,[^,]+\])+)$"#).unwrap();
-}
-
 /// Cut list, consisting of intervals of frame numbers and/or times. At least one
 /// of both must be there
 #[derive(Default)]
@@ -518,12 +518,22 @@ impl Cutlist {
         Ok(cutlist)
     }
 
-    pub fn kinds(&self) -> Vec<Kind> {
-        let mut kinds: Vec<Kind> = vec![];
-        for kind in self.items.keys() {
-            kinds.push(kind.clone());
+    /// Return an iterator for the cut list items of a ceratin kind
+    pub fn items(&self, kind: &Kind) -> anyhow::Result<std::slice::Iter<'_, Item>> {
+        match self.items.get(kind) {
+            Some(items) => Ok(items.iter()),
+            None => Err(anyhow!("Cut list is not of kind \"{}\"", kind)),
         }
-        kinds
+    }
+
+    /// Checks is cut list contain items of a ceratin kind
+    pub fn is_of_kind(&self, kind: &Kind) -> bool {
+        self.items.contains_key(kind)
+    }
+
+    /// Iterator over the kinds of a cut list
+    pub fn kinds(&self) -> std::collections::hash_map::Keys<'_, Kind, std::vec::Vec<Item>> {
+        self.items.keys()
     }
 
     /// Submit cut list to cutlist.at and set the cut list ID in self from the
@@ -601,37 +611,6 @@ impl Cutlist {
         }
     }
 
-    /// Creates the split string that mkvmerge requires to cut a video
-    pub fn to_mkvmerge_split_str(&self, kind: &Kind) -> anyhow::Result<String> {
-        if !self.items.contains_key(kind) {
-            return Err(anyhow!(
-                "Cannot create mkvmerge split string: Cut list does not contain {} intervals",
-                kind
-            ));
-        }
-
-        let mut split_str = match kind {
-            Kind::Frames => "parts-frames:",
-            Kind::Time => "parts:",
-        }
-        .to_string();
-
-        for (i, item) in self.items.get(kind).unwrap().iter().enumerate() {
-            if i > 0 {
-                split_str += ",+"
-            }
-            write!(
-                split_str,
-                "{}-{}",
-                f64_to_cut_str(kind, item.start),
-                f64_to_cut_str(kind, item.end)
-            )
-            .expect("Cannot convert cut list item to mkvmerge split string");
-        }
-
-        Ok(split_str)
-    }
-
     // Retrieves cut number cut_no from ini structure, creates a cut list item
     // from it and appends it to the cut list
     fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: i32) -> anyhow::Result<()> {
@@ -645,36 +624,29 @@ impl Cutlist {
                 }
             }
         } else {
-            for kind in self.kinds() {
-                if let Some(item) = Item::from_ini(cutlist_ini, cut_no, &kind).context(format!(
+            for kind in [&Kind::Frames, &Kind::Time] {
+                if self.is_of_kind(kind) {
+                    if let Some(item) =
+                        Item::from_ini(cutlist_ini, cut_no, kind).context(format!(
                     "Cut no {} does not contain {} information, though the cut list supports that",
                     cut_no, kind,
                 ))? {
-                    self.items.get_mut(&kind).unwrap().push(item);
+                        self.items.get_mut(kind).unwrap().push(item);
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    /// Returns true if cut list contains frames intervals, otherwise false
-    fn is_kind_frames(&self) -> bool {
-        self.items.contains_key(&Kind::Frames)
-    }
-
-    /// Returns true if cut list contains time intervals, otherwise false
-    fn is_kind_time(&self) -> bool {
-        self.items.contains_key(&Kind::Time)
-    }
-
     /// Length of cut list (i.e., the number of cuts). If the cut list has both,
     /// frames and time intervals/cuts, the number of cuts must be equal, since
     /// otherwise the cut list was invalid
     fn len(&self) -> usize {
-        if self.is_kind_frames() {
+        if self.is_of_kind(&Kind::Frames) {
             return self.items.get(&Kind::Frames).unwrap().len();
         }
-        if self.is_kind_time() {
+        if self.is_of_kind(&Kind::Time) {
             return self.items.get(&Kind::Time).unwrap().len();
         }
         0
@@ -766,8 +738,8 @@ impl Cutlist {
 
         // If cut list contains time and frames intervals, both must have the
         // same number of items
-        if self.is_kind_frames()
-            && self.is_kind_time()
+        if self.is_of_kind(&Kind::Frames)
+            && self.is_of_kind(&Kind::Time)
             && self.items.get(&Kind::Frames).unwrap().len()
                 != self.items.get(&Kind::Time).unwrap().len()
         {
@@ -776,21 +748,15 @@ impl Cutlist {
             ));
         }
 
-        if self.is_kind_frames() {
+        if self.is_of_kind(&Kind::Frames) {
             validate_intervals(&Kind::Frames, self.items.get(&Kind::Frames).unwrap())?;
         }
-        if self.is_kind_time() {
+        if self.is_of_kind(&Kind::Time) {
             validate_intervals(&Kind::Time, self.items.get(&Kind::Time).unwrap())?;
         }
 
         Ok(())
     }
-}
-
-lazy_static! {
-    /// Reg exp for the interval start/end of a cut list of kind "time"
-    static ref RE_TIME: Regex =
-        Regex::new(r#"^(\d+):([0-5]\d)+:([0-5]\d)+(\.(\d{0,6}))*$"#).unwrap();
 }
 
 /// Converts the string representation of an interval start or end into a
@@ -845,25 +811,4 @@ fn cut_str_to_f64(kind: &Kind, cut_str: &str) -> anyhow::Result<f64> {
                 })
         }
     }
-}
-
-/// Converts the floating point representation of an interval start or end of a
-/// cut interval into a string
-fn f64_to_cut_str(kind: &Kind, point: f64) -> String {
-    let mut cut_str = "".to_string();
-
-    match kind {
-        Kind::Frames => write!(cut_str, "{:.0}", point)
-            .expect("Cannot convert a point of a cut list of type frames to mkvmerge to string"),
-        Kind::Time => {
-            let time: u64 = (point * 1000000_f64) as u64;
-            let (secs, subs) = (time / 1000000, time % 1000000);
-            let (hours, rest) = (secs / 3600, secs % 3600);
-            let (mins, rest) = (rest / 60, rest % 60);
-            write!(cut_str, "{:02}:{:02}:{:02}.{:06}", hours, mins, rest, subs)
-                .expect("Cannot convert a point of a cut list of type time to mkvmerge to string");
-        }
-    };
-
-    cut_str
 }

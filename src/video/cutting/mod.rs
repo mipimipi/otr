@@ -1,17 +1,18 @@
 mod cutlist;
+mod mkvmerge;
 
+use cutlist::Cutlist;
 pub use cutlist::{
     AccessType as CutlistAccessType, Ctrl as CutlistCtrl, Rating as CutlistRating, ID as CutlistID,
 };
+pub use mkvmerge::is_installed as mkvmerge_is_installed;
 
 use anyhow::{anyhow, Context};
-use cutlist::{Cutlist, Kind};
 use log::*;
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
     path::Path,
-    process::Command,
     str,
 };
 
@@ -44,24 +45,6 @@ impl Error for CutError {}
 impl From<anyhow::Error> for CutError {
     fn from(err: anyhow::Error) -> CutError {
         CutError::Any(err)
-    }
-}
-
-/// Check if mkvmerge can be called. If that is not possible, it could be that
-/// it is either not installed or not in the path
-pub fn check_mkvmerge() -> anyhow::Result<()> {
-    let output = Command::new("mkvmerge")
-        .arg("-V")
-        .output()
-        .context("Something went wrong when calling mkvmerge")?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        let err_msg: String = str::from_utf8(&output.stderr)
-            .unwrap_or_else(|_| panic!("Cannot extract error message from mkvmerge call"))
-            .to_string();
-        Err(anyhow!("mkvmerge cannot be called").context(err_msg))
     }
 }
 
@@ -129,7 +112,7 @@ where
 
     let cutlist = Cutlist::try_from(cutlist_path.as_ref())?;
 
-    match cut_with_mkvmerge(&in_path, &out_path, &cutlist).context(format!(
+    match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist).context(format!(
         "Could not cut video with cut list from '{}'",
         cutlist_path.as_ref().display()
     )) {
@@ -161,7 +144,7 @@ where
 
     let mut cutlist = Cutlist::try_from_intervals(intervals.as_ref())?;
 
-    if let Err(err) = cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
+    if let Err(err) = mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist) {
         return Err(CutError::Any(
             err.context(format!("Could not cut video with {}", intervals)),
         ));
@@ -207,7 +190,7 @@ where
 
     // Retrieve cut lists from provider and cut video
     match Cutlist::try_from(id) {
-        Ok(cutlist) => match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
+        Ok(cutlist) => match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist) {
             Ok(_) => Ok(()),
             Err(err) => Err(CutError::Any(
                 anyhow!(err).context(format!("Could not cut video with cut list {}", id)),
@@ -248,7 +231,7 @@ where
     let mut is_cut = false;
     for header in headers {
         match Cutlist::try_from(header.id()) {
-            Ok(cutlist) => match cut_with_mkvmerge(&in_path, &out_path, &cutlist) {
+            Ok(cutlist) => match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist) {
                 Ok(_) => {
                     is_cut = true;
                     break;
@@ -256,15 +239,18 @@ where
                 Err(err) => {
                     error!(
                         "{:?}",
-                        anyhow!(err)
-                            .context(format!("Could not cut video with cut list {}", header.id()))
+                        anyhow!(err).context(format!(
+                            "Could not cut video with cut list ID={}",
+                            header.id()
+                        ))
                     );
                 }
             },
             Err(err) => {
                 error!(
                     "{:?}",
-                    anyhow!(err).context(format!("Could not retrieve cut list {}", header.id(),))
+                    anyhow!(err)
+                        .context(format!("Could not retrieve cut list ID={}", header.id(),))
                 );
             }
         }
@@ -277,51 +263,4 @@ where
     }
 
     Ok(())
-}
-
-/// Cut a video file stored in in_path with mkvmerge using the given cut list.
-/// The cut video is stored in out_path.
-fn cut_with_mkvmerge<P, Q>(in_path: P, out_path: Q, cutlist: &Cutlist) -> anyhow::Result<()>
-where
-    P: AsRef<Path>,
-    Q: AsRef<Path>,
-{
-    fn exec_mkvmerge<P, Q>(
-        in_path: P,
-        out_path: Q,
-        kind: &Kind,
-        cutlist: &Cutlist,
-    ) -> anyhow::Result<()>
-    where
-        P: AsRef<Path>,
-        Q: AsRef<Path>,
-    {
-        // Call mkvmerge to cut the video
-        let output = Command::new("mkvmerge")
-            .arg("-o")
-            .arg(out_path.as_ref().to_str().unwrap())
-            .arg("--split")
-            .arg(cutlist.to_mkvmerge_split_str(kind)?)
-            .arg(in_path.as_ref().to_str().unwrap())
-            .output()?;
-        if !output.status.success() {
-            return Err(anyhow!(str::from_utf8(&output.stdout).unwrap().to_string()));
-        }
-        Ok(())
-    }
-
-    // Try all available kinds (frame numbers, time). After the cutting was
-    // successful for one of them, exit
-    let mut err = anyhow::Error::new(CutError::Default);
-    for kind in cutlist.kinds() {
-        if let Err(mkvmerge_err) =
-            exec_mkvmerge(in_path.as_ref(), out_path.as_ref(), &kind, cutlist)
-        {
-            err = mkvmerge_err;
-        } else {
-            return Ok(());
-        }
-    }
-
-    Err(err.context("mkvmerge returned an error"))
 }
