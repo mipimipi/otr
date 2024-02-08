@@ -90,13 +90,13 @@ fn main() {
                 _ => LevelFilter::Trace,
             }
         })
-        // Initialize loggiong
+        // Initialize logging
         .init()
         // Provoke dump in case of an error
         .unwrap();
 
     // Check if mkvmerge is properly installed
-    if cli::is_cut_command() || cli::is_process_command() && !video::mkvmerge_is_installed() {
+    if (cli::is_cut_command() || cli::is_process_command()) && !video::mkvmerge_is_installed() {
         error!("mkvmerge is required by otr for cutting videos. Make sure that MKVToolnix is properly installed and that the mkvmerge binary is in your path");
         std::process::exit(1);
     }

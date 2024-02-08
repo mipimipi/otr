@@ -304,7 +304,7 @@ fn decoding_params(cbc_key: &str, request: &str) -> anyhow::Result<OTRParams> {
     }
     if &response[..OTR_ERROR_INDICATOR.len()] == OTR_ERROR_INDICATOR {
         return Err(anyhow!(
-            "Error while requesting decoding key: '{}'",
+            "Error while requesting decoding key: \"{}\"",
             response[OTR_ERROR_INDICATOR.len()..].to_string()
         ));
     }
@@ -453,7 +453,7 @@ fn header_params(in_file: &mut File) -> anyhow::Result<OTRParams> {
             str::from_utf8(&buffer[0..FILETYPE_LENGTH]).unwrap()
         );
 
-        return Err(anyhow!("File does not start with '{}'", OTRKEY_FILETYPE));
+        return Err(anyhow!("File does not start with \"{}\"", OTRKEY_FILETYPE));
     }
 
     // Create Blowfish little endian cypher and decrypt rest of file header

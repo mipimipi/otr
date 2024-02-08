@@ -8,7 +8,7 @@ use super::cutlist::{Cutlist, Kind};
 /// called. If that is not possible, it could be that it is either not installed
 /// or not in the path
 pub fn is_installed() -> bool {
-    match Command::new("mkvmerge1").arg("-V").output() {
+    match Command::new("mkvmerge").arg("-V").output() {
         Ok(output) => output.status.success(),
         Err(_) => false,
     }
@@ -40,7 +40,7 @@ where
     Err(err.context("Could not cut video with mkvmerge"))
 }
 
-/// Execute mkvmerge to cut a video
+/// Execute mkvmerge command to cut a video
 fn exec_mkvmerge<P, Q>(
     in_path: P,
     out_path: Q,
@@ -90,7 +90,7 @@ fn f64_to_cut_str(kind: &Kind, point: f64) -> String {
 pub fn to_split_str(cutlist: &Cutlist, kind: &Kind) -> anyhow::Result<String> {
     if !cutlist.is_of_kind(kind) {
         return Err(anyhow!(
-            "Cannot create mkvmerge split string: Cut list does not contain {} intervals",
+            "Cannot create mkvmerge split string: Cut list does not contain \"{}\"\" intervals",
             kind
         ));
     }

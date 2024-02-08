@@ -101,7 +101,7 @@ impl TryFrom<&str> for Kind {
         match s {
             "frames" => Ok(Kind::Frames),
             "time" => Ok(Kind::Time),
-            _ => Err(anyhow!("'{}' is not a valid kind of a cut list", s)),
+            _ => Err(anyhow!("\"{}\" is not a valid kind of a cut list", s)),
         }
     }
 }
@@ -286,14 +286,14 @@ impl Item {
         Item::new(
             cut.get(item_attr_start(kind)).with_context(|| {
                 format!(
-                    "Could not find attribute '{}' for cut no {}",
+                    "Could not find attribute \"{}\" for cut no {}",
                     item_attr_start(kind),
                     cut_no
                 )
             })?,
             cut.get(item_attr_duration(kind)).with_context(|| {
                 format!(
-                    "Could not find attribute '{}' for cut no {}",
+                    "Could not find attribute \"{}\" for cut no {}",
                     item_attr_duration(kind),
                     cut_no
                 )
@@ -341,7 +341,7 @@ impl TryFrom<&Ini> for Cutlist {
                 .section(Some(CUTLIST_META_SECTION))
                 .with_context(|| {
                     format!(
-                        "Could not find section '{}' in cutlist",
+                        "Could not find section \"{}\" in cutlist",
                         CUTLIST_META_SECTION
                     )
                 })?

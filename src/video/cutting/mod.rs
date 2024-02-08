@@ -113,7 +113,7 @@ where
     let cutlist = Cutlist::try_from(cutlist_path.as_ref())?;
 
     match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist).context(format!(
-        "Could not cut video with cut list from '{}'",
+        "Could not cut video with cut list from \"{}\"",
         cutlist_path.as_ref().display()
     )) {
         Err(err) => Err(CutError::Any(err)),
