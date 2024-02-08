@@ -8,12 +8,10 @@ use super::cutlist::{Cutlist, Kind};
 /// called. If that is not possible, it could be that it is either not installed
 /// or not in the path
 pub fn is_installed() -> bool {
-    let output = Command::new("mkvmerge")
-        .arg("-V")
-        .output()
-        .unwrap_or_else(|_| panic!("Something went wrong when calling mkvmerge"));
-
-    output.status.success()
+    match Command::new("mkvmerge1").arg("-V").output() {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
 }
 
 /// Cut a video file stored in in_path with mkvmerge using the given cut list.
