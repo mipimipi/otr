@@ -189,7 +189,9 @@ Since MKVmerge is used to cut videos, the resulting files have the [Matroska con
 
 #### Submitting cut lists to cutlist.at
 
-If self-created cut lists are used (`otr cut --cutlist ...`), otr can upload such cut lists to [cutlist.at](http://cutlist.at) automatically to make them publicly available. This requires a registration at cutlist.at (i.e., an access token - $$FRED). Furthermore, the [otr configuration](#configuration) must be set up accordingly. If required, the attributes of such cut lists can be adjusted on the cutlist.at web page, after they were uploaded.
+If self-created cut lists are used (i.e., dedicated cut intervals with `otr cut --cutlist ...`), otr can generate corresponding cut list files and upload them to [cutlist.at](http://cutlist.at) automatically to make them publicly available. This requires a registration at cutlist.at (i.e., an access token - $$FRED). Furthermore, the [otr configuration](#configuration) must be set up accordingly. If required, the attributes of such cut lists can be adjusted on the cutlist.at web site, after they were uploaded.
+
+The generated cut list files that are stored in the sub folder `OTR` of the user-specific cache directory of your OS (that is typically `<XDG-CACHE-HOME-DIR>` - i.e., in most cases `~/.cache` -  on Linux, `~/Library/Caches` on macOS, `C:\Users\<YOUR_USER_NAME>\AppData\Local` on Windows). After they were uploaded, these files are no longer required and can be deleted.
 
 ## Verbosity
  
