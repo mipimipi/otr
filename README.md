@@ -35,10 +35,13 @@ Decoding includes verifying the checksums of the OTRKEY file and the decoded fil
 
 For cutting videos, there are two different options:
 
-1. otr downloads cut lists from the cut list provider [cutlist.at](http://cutlist.at) automatically. If multiple cut lists are available, otr prefers those with a high rating.
+1. otr downloads cut lists from the cut list provider [cutlist.at](http://cutlist.at) automatically
+
+    If multiple cut lists are available, otr prefers those with a high rating.
+
 1. Cut intervals can be specified on the command line
 
-	This option can make sense if cutlist.at cannot provide a cut list for a certain video. In this case, the cut intervals could be determined (manually) with a video editor such as [Avidemux](https://avidemux.sourceforge.net/), [OpenShot](https://www.openshot.org/) or [Shotcut](https://www.shotcut.org/)on Linux,  and fed into otr on the command line.
+	This option can make sense if cutlist.at cannot provide a cut list for a certain video. In this case, the cut intervals could be determined (manually) with a video editor such as [Avidemux](https://avidemux.sourceforge.net/), [OpenShot](https://www.openshot.org/) or [Shotcut](https://www.shotcut.org/) on Linux, for example, and fed into otr on the command line. Such self-created cut lists can be uploaded to [cutlist.at](http://cutlist.at) to make them publicly available.
 
 otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html) which is part of the [MKVToolNix](https://mkvtoolnix.download/) program suite.
 
@@ -132,6 +135,9 @@ The configuration file has this structure:
         },
         "cutting": {
             "min_cutlist_rating": <MINIMUM CUT LIST RATING>
+            "submit_cutlists": <true/false>
+            "cutlist_at_access_token": <ACCESS TOKEN REQUIRED FOR CUTLIST.AT>
+            "cutlist_rating": <DEFAULT CUT LIST RATING>
         }
 	}
 
@@ -142,6 +148,9 @@ All parameters are optional and/or have default values, or can be specified/over
 | `working_directory` | [Working directory](#working-directory) of otr | Optional | `~/Videos/OTR` on Linux, `~/Movies/OTR`on macOS, `C:\Users\<YOUR_USER_NAME>\Videos\OTR` on Windows | No |
 | `user`, `password`| Access data for Online TV Recorder | Mandatory for decoding videos | There is no default | Yes (`--user/-u` and `--password/-p`)|
 | `min_cutlist_rating` | Minimum rating that a cut list from cutlist.at must have to be accepted by otr for cutting videos | Optional | If the parameter is not given, all cut lists are accepted |  Yes (`--min-rating`) |
+| `submit_cutlists` | Whether self-created cut lists are submitted to cutlist.at or not. To upload cut lists, an access token is required | Optional | If the parameter is not given, self-created cut lists will not be submitted |  No |
+| `cutlist_at_access_token` | User-specific access token for cutlist.at | Mandatory for uploading self-created cut lists  | There is no default |  No |
+| `cutlist_rating` | Rating for a self-created cut list | Optional | If the parameter is not given, the rating will be 0 (i.e., the cut list will be treated as a dummy and not be offered to other users) |  Yes (`--rating`) |
 
 ### Working Directory
 
@@ -176,7 +185,11 @@ Since MKVmerge is used to cut videos, the resulting files have the [Matroska con
 
 ### `otr cut`
 
- `otr cut` allows cutting a single video. The cut list that is used for that can either be selected and downloaded automatically from cutlist.at, or submitted via commandline parameters (either as file or as dedicated cut intervals) - see the command line help for details.
+ `otr cut` allows cutting a single video. The cut list that is used for that can either be selected and downloaded automatically from cutlist.at, or submitted via command line parameters (either as file or as dedicated cut intervals) - see the command line help for details.
+
+#### Submitting cut lists to cutlist.at
+
+If self-created cut lists are used (`otr cut --cutlist ...`), otr can upload such cut lists to [cutlist.at](http://cutlist.at) automatically to make them publicly available. This requires a registration at cutlist.at (i.e., an access token - $$FRED). Furthermore, the [otr configuration](#configuration) must be set up accordingly. If required, the attributes of such cut lists can be adjusted on the cutlist.at web page, after they were uploaded.
 
 ## Verbosity
  
