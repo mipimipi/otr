@@ -1,5 +1,13 @@
 # Changelog
 
+## [Release 0.9.0](https://gitlab.com/mipimipi/otr/tags/v0.9.0) (2024-02-09)
+
+### Added
+
+- Automatic generation of cut list files for self-created cut lists and submission of such files to cutlist.at
+- New CLI parameter `--rating` to overwrite the default rating for self-created cut lists that can be maintained in the configuration file
+- Dedicated check if mkvmerge is installed
+
 ## [Release 0.8.0](https://gitlab.com/mipimipi/otr/tags/v0.8.0) (2024-01-29)
 
 ### Added
