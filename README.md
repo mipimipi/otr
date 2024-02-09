@@ -1,5 +1,4 @@
 [![Crates.io](https://img.shields.io/crates/v/otr.svg)](https://crates.io/crates/otr)
-[![Documentation](https://docs.rs/otr/badge.svg)](https://docs.rs/otr)
 [![REUSE status](https://api.reuse.software/badge/gitlab.com/mipimipi/otr)](https://api.reuse.software/info/gitlab.com/mipimipi/otr)
 
 # otr
