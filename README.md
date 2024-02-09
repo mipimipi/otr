@@ -4,7 +4,7 @@
 
 # otr
 
-**Structure of configuration file changed in an incompatible way with v0.8.0! - see details [here](#configuration)**
+**PLEASE NOTE: Structure of configuration file changed in an incompatible way with v0.8.0! - see details [here](#configuration)**
 
 otr is a command line tool that decodes and cuts video files from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux, macOS and Windows.
 
@@ -33,17 +33,15 @@ Decoding includes verifying the checksums of the OTRKEY file and the decoded fil
 
 ### Cutting
 
-For cutting videos, there are two different options:
+otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html) which is part of the [MKVToolNix](https://mkvtoolnix.download/) program suite. With respect to cut list determination and selection, there are two different options:
 
-1. otr downloads cut lists from the cut list provider [cutlist.at](http://cutlist.at) automatically
+1. otr downloads and selects cut lists from the cut list provider [cutlist.at](http://cutlist.at) automatically
 
     If multiple cut lists are available, otr prefers those with a high rating.
 
 1. Cut intervals can be specified on the command line
 
-	This option can make sense if cutlist.at cannot provide a cut list for a certain video. In this case, the cut intervals could be determined (manually) with a video editor such as [Avidemux](https://avidemux.sourceforge.net/), [OpenShot](https://www.openshot.org/) or [Shotcut](https://www.shotcut.org/) on Linux, for example, and fed into otr on the command line. Such self-created cut lists can be uploaded to [cutlist.at](http://cutlist.at) to make them publicly available.
-
-otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html) which is part of the [MKVToolNix](https://mkvtoolnix.download/) program suite.
+	This option can make sense if cutlist.at cannot provide a cut list for a video. In this case, the cut intervals could be determined manually with a video editor (on Linux, [Avidemux](https://avidemux.sourceforge.net/), [OpenShot](https://www.openshot.org/) or [Shotcut](https://www.shotcut.org/) can be used, for example), and fed into otr on the command line. otr can upload such self-created cut lists to [cutlist.at](http://cutlist.at) to make them publicly available.
 
 ### Fast, concurrent processing
 
@@ -55,7 +53,7 @@ It is possible to create a dedicated mime type for otrkey files. otr can be defi
 
 ### Simple usage
 
-Though being a command line application, the usage of otr is quite simple. If, for example, you have downloaded some OTRKEY files from OTR, the command `otr process` processes all files (i.e., they are decoded, cut lists are downloaded and the files are cut). With the dedicated mime type, it is even simpler: A double click on an OTRKEY file starts otr.
+Though being a command line application, the usage of otr is quite simple. If, for example, you have downloaded some OTRKEY files from OTR, the command `otr process` processes all files (i.e., they are decoded, cut lists are downloaded and the files are cut). With the dedicated mime type, it is even simpler: A double click on an OTRKEY file starts otr. In addition, otr has dedicated sub commands for decoding and cutting videos which offer further options.
 
 ## Installation
 
@@ -63,7 +61,7 @@ Though being a command line application, the usage of otr is quite simple. If, f
 
 #### Manual installation
 
-This works for both, Linux and macOS. Make sure to install MKVToolNix, since - as already mentioned - otr requires MKVmerge for cutting videos.
+This works for both, Linux and macOS. Make sure to install MKVToolNix, since - as already mentioned - otr requires MKVMerge for cutting videos.
 
 To download otr, clone this repository via
 
@@ -86,7 +84,7 @@ For Arch Linux (and other Linux distros, that can install packages from the Arch
 
 #### OTRKEY mimetype
 
-On Linux, to create a dedicated mimetype for OTRKEY files and to make otr the default application for that type, the `resources` folder of this repository contains two files. Just copy them to the corresponding folders of your machine:
+For Linux, the `resources` folder of this repository contains two files to create a dedicated mimetype for OTRKEY files and to make otr the default application for that type. Just copy them to the corresponding folders of your machine:
 
 	cp resources/otr.desktop /usr/share/applications/.
 	cp resources/otrkey_mime.xml /usr/share/mime/packages/.
@@ -101,7 +99,7 @@ See [Manual installation](#manual-installation). Files that were cut with otr ha
 
 The installation on Windows is a little bit cumbersome. Since there is no Windows installer for otr, it works purely manual:
 
-1. Make sure that [MKVToolNix](https://mkvtoolnix.download/) is installed and that the path of the binaries (`mkvmerge`, etc.) is contained in the Windows path environment variable (see [here](https://helpdeskgeek.com/windows-10/add-windows-path-environment-variable/) how to achieve this).
+1. Make sure that [MKVToolNix](https://mkvtoolnix.download/) is installed and that the path of the binaries (`mkvmerge`, etc.) is contained in the Windows path environment variable
 1. In a terminal window, clone the otr repository ([git](https://git-scm.com/download/win) must be installed as prerequisite, of course) and switch to the new directory:
 
 		git clone https://gitlab.com/mipimipi/otr.git
@@ -111,15 +109,15 @@ The installation on Windows is a little bit cumbersome. Since there is no Window
 
 		cargo build --release
 		   
-1. If the build step ran through without errors, the otr binary (`otr.exe`) is stored in the sub directory `target\release`. Copy the binary wherever you want. You might want to add its new path to the Windows path variable as described above.
+1. If the build step ran through without errors, the otr binary (`otr.exe`) is stored in the sub directory `target\release`. Copy the binary wherever you want. You might want to add its new path to the Windows path environment variable as well.
 
-1. Maintain the otr configuration file. It must be stored in the directory `C:\Users\<YOUR_USER_NAME>\AppData\Roaming`. Replace `<YOUR_USER_NAME>` by your Windows user name.
+1. Maintain the otr configuration file (see [below](#configuration)).
 
 1. Have fun with otr.
 
 ## Configuration
 
-otr can be configured by creating a configuration file in [JSON](https://en.wikipedia.org/wiki/JSON) format. It is named `otr.json` and stored in the default configuration directory of your OS. That is ...
+otr can be configured by creating a configuration file in [JSON](https://en.wikipedia.org/wiki/JSON) format. It is named `otr.json` and must be stored in the default configuration directory of your OS. That is ...
 
 - `<XDG-CONFIG-HOME-DIR>` on Linux, whereas in most cases `<XDG-CONFIG-HOME-DIR>` equals to `~/.config`
 - `~/Library/Application Support` on macOS
@@ -141,14 +139,14 @@ The configuration file has this structure:
         }
 	}
 
-All parameters are optional and/or have default values, or can be specified/overwritten by a corresponding command line parameter. This table explains the details:
+All parameters are optional and/or have default values, or can be overwritten by a corresponding command line parameter. This table explains the details:
 
 | Parameter | Description | Mandatory | Default | CLI parameter |
 |---|---|---|---|---|
 | `working_directory` | [Working directory](#working-directory) of otr | Optional | `~/Videos/OTR` on Linux, `~/Movies/OTR`on macOS, `C:\Users\<YOUR_USER_NAME>\Videos\OTR` on Windows | No |
 | `user`, `password`| Access data for Online TV Recorder | Mandatory for decoding videos | There is no default | Yes (`--user/-u` and `--password/-p`)|
 | `min_cutlist_rating` | Minimum rating that a cut list from cutlist.at must have to be accepted by otr for cutting videos | Optional | If the parameter is not given, all cut lists are accepted |  Yes (`--min-rating`) |
-| `submit_cutlists` | Whether self-created cut lists are submitted to cutlist.at or not. To upload cut lists, an access token is required | Optional | If the parameter is not given, self-created cut lists will not be submitted |  No |
+| `submit_cutlists` | Whether self-created cut lists are submitted to cutlist.at or not. To upload cut lists, an access token for cutlist.at is required | Optional | If the parameter is not given, self-created cut lists will not be submitted |  No |
 | `cutlist_at_access_token` | User-specific access token for cutlist.at | Mandatory for uploading self-created cut lists  | There is no default |  No |
 | `cutlist_rating` | Rating for a self-created cut list | Optional | If the parameter is not given, the rating will be 0 (i.e., the cut list will be treated as a dummy and not be offered to other users) |  Yes (`--rating`) |
 
@@ -169,6 +167,8 @@ There, video files are stored depending on their processing status. I.e., `Cut` 
 
 ## Running otr
 
+otr has different sub commands.
+
 ### `otr process`
 
 `otr process` processes all video files that are either submitted as command line parameters, or stored in the [working directory](#working-directory).
@@ -177,7 +177,7 @@ otr requires a certain schema for the name of video files (that is the schema OT
 
     <name-of-video>_YY.MM.DD_hh-mm_<TV-station>_<a-number>_TVOON_DE.mpg(.|.HQ|.HD).<format>(.otrkey)?
 
-Since MKVmerge is used to cut videos, the resulting files have the [Matroska container format](https://en.wikipedia.org/wiki/Matroska) (.mkv). 
+Since MKVMerge is used to cut videos, the resulting files have the [Matroska container format](https://en.wikipedia.org/wiki/Matroska) (.mkv). 
 
 ### `otr decode`
 
@@ -189,9 +189,9 @@ Since MKVmerge is used to cut videos, the resulting files have the [Matroska con
 
 #### Submitting cut lists to cutlist.at
 
-If self-created cut lists are used (i.e., dedicated cut intervals with `otr cut --cutlist ...`), otr can generate corresponding cut list files and upload them to [cutlist.at](http://cutlist.at) automatically to make them publicly available. This requires a registration at cutlist.at (i.e., an access token - $$FRED). Furthermore, the [otr configuration](#configuration) must be set up accordingly. If required, the attributes of such cut lists can be adjusted on the cutlist.at web site, after they were uploaded.
+If self-created cut lists are used (i.e., dedicated cut intervals with `otr cut --cutlist ...`), otr can generate corresponding cut list files and upload them to [cutlist.at](http://cutlist.at) automatically to make the cut lists publicly available. This requires a registration at cutlist.at (i.e., an access token - $$FRED). Furthermore, the [otr configuration](#configuration) must be set up accordingly. If required, the attributes of such cut lists can be adjusted on the cutlist.at web site, after the  upload.
 
-The generated cut list files that are stored in the sub folder `OTR` of the user-specific cache directory of your OS (that is typically `<XDG-CACHE-HOME-DIR>` - i.e., in most cases `~/.cache` -  on Linux, `~/Library/Caches` on macOS, `C:\Users\<YOUR_USER_NAME>\AppData\Local` on Windows). After they were uploaded, these files are no longer required and can be deleted.
+The generated cut list files are stored in the sub folder `OTR` of the user-specific cache directory of your OS (that is typically `<XDG-CACHE-HOME-DIR>` - i.e., in most cases `~/.cache` -  on Linux, `~/Library/Caches` on macOS, `C:\Users\<YOUR_USER_NAME>\AppData\Local` on Windows). After they were uploaded, these files are no longer required and can be deleted.
 
 ## Verbosity
  
