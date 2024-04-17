@@ -17,7 +17,7 @@ use std::{
 };
 
 /// Special error type for cutting videos to be able to handle specific
-/// situations - e.g., if no cutlist exists
+/// situations - e.g., if no cut list exists
 #[derive(Debug, Default)]
 pub enum CutError {
     Any(anyhow::Error),
@@ -32,7 +32,7 @@ impl fmt::Display for CutError {
         match *self {
             CutError::Any(ref source) => write!(f, "Error: {}", source),
             CutError::Default => write!(f, "Default cut error"),
-            CutError::NoCutlist => write!(f, "No cutlist exists"),
+            CutError::NoCutlist => write!(f, "No cut list exists"),
             CutError::CutlistSubmissionFailed(ref source) => {
                 write!(f, "Submission of cut list to cutlist.at failed: {}", source)
             }
@@ -56,7 +56,7 @@ impl From<anyhow::Error> for CutError {
 ///   file is genererated and uploaded to cutlist.at)
 /// - cutlist_ctrl contains attributes to control handling of cut lists, such as
 ///   - access_type: specifies how to (try to) get an appropriate cut list
-///   - min_rating: specifies the minimum rating a cutlist must have when
+///   - min_rating: specifies the minimum rating a cut list must have when
 ///     automatically selected from the cut list provider
 ///   - submit: whether cut list shall shall be uploaded to cutlist.at. In this
 ///     case an access token is required. Submitting cut lists does only make
@@ -205,7 +205,7 @@ where
 /// Cut a video with a cut list retrieved from a provider by video file name and
 /// selected automatically.
 /// in_path is the path of the decoded video file.  out_path is the path of the
-/// cut video file. min_cutlist_rating specifies the minimum rating a cutlist
+/// cut video file. min_cutlist_rating specifies the minimum rating a cut list
 /// must have to be accepted
 fn cut_with_cutlist_from_provider_auto_select<P, Q>(
     in_path: P,

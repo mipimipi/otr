@@ -123,7 +123,7 @@ pub enum AccessType<'a> {
     Auto,            // retrieve cut lists from provider and select one automatically
     Direct(&'a str), // direct access to cut list (as string consisting of intervals)
     File(&'a Path),  // retrieve cut list from file
-    ID(ID),          // retrieve cutlist from provider by ID
+    ID(ID),          // retrieve cut list from provider by ID
 }
 
 /// Header data to retrieve cut lists from a provider
@@ -163,7 +163,7 @@ impl ProviderHeader {
 /// Retrieves the headers of cut lists for a video from a provider. If no cut
 /// list exists, an empty array but no error is returned.
 /// file_name is the name of the video file. min_rating specifies the minimum
-/// rating a cutlist must have to be accepted
+/// rating a cut list must have to be accepted
 pub fn headers_from_provider(
     file_name: &str,
     min_rating: Option<Rating>,
@@ -216,7 +216,7 @@ pub fn headers_from_provider(
             continue;
         }
 
-        // Create default cutlist header
+        // Create default cut list header
         let mut header = ProviderHeader {
             id: raw_header.id,
             ..Default::default()
@@ -249,7 +249,7 @@ pub fn headers_from_provider(
     Ok(headers)
 }
 
-/// Cut/interval of a cutlist - i.e., a start and an end point
+/// Cut/interval of a cut list - i.e., a start and an end point
 pub struct Item {
     pub start: f64,
     pub end: f64,
@@ -341,12 +341,12 @@ impl TryFrom<&Ini> for Cutlist {
                 .section(Some(CUTLIST_META_SECTION))
                 .with_context(|| {
                     format!(
-                        "Could not find section \"{}\" in cutlist",
+                        "Could not find section \"{}\" in cut list",
                         CUTLIST_META_SECTION
                     )
                 })?
                 .get(CUTLIST_ID)
-                .with_context(|| format!("Could not find attribute \"{}\" in cutlist", CUTLIST_ID))
+                .with_context(|| format!("Could not find attribute \"{}\" in cut list", CUTLIST_ID))
             {
                 Ok(_id) => {
                     Some(str::parse(_id).context(
@@ -419,7 +419,7 @@ impl TryFrom<&Path> for Cutlist {
             })?)
             .with_context(|| {
                 format!(
-                    "Could not parse response for cutlist \"{}\" as INI",
+                    "Could not parse response for cut list \"{}\" as INI",
                     cutlist_file.display()
                 )
             })?,
@@ -431,7 +431,7 @@ impl TryFrom<&Path> for Cutlist {
     }
 }
 
-/// Retrieve a cut list from a cutlist provider by cutlist id
+/// Retrieve a cut list from a cut list provider by cut list id
 impl TryFrom<ID> for Cutlist {
     type Error = anyhow::Error;
 
@@ -439,9 +439,9 @@ impl TryFrom<ID> for Cutlist {
         // Retrieve cut list by ID
         let response =
             reqwest::blocking::get(CUTLIST_RETRIEVE_LIST_DETAILS_URI.to_string() + &id.to_string())
-                .with_context(|| format!("Did not get a response for requesting cutlist {}", id))?
+                .with_context(|| format!("Did not get a response for requesting cut list {}", id))?
                 .text()
-                .with_context(|| format!("Could not parse response for cutlist {} as text", id))?;
+                .with_context(|| format!("Could not parse response for cut list {} as text", id))?;
         if response == CUTLIST_AT_ERROR_ID_NOT_FOUND {
             return Err(anyhow!(
                 "Cut list with ID={} does not exist at provider",
@@ -451,7 +451,7 @@ impl TryFrom<ID> for Cutlist {
 
         // Parse cut list
         let cutlist_ini = Ini::load_from_str(&response)
-            .with_context(|| format!("Could not parse response for cutlist {} as INI", id))?;
+            .with_context(|| format!("Could not parse response for cut list {} as INI", id))?;
 
         Cutlist::try_from(&cutlist_ini)
     }
@@ -477,7 +477,7 @@ impl Cutlist {
                 .unwrap_or_else(|| panic!("Cannot extract intervals type from intervals string"))
                 .as_str(),
         )
-        .expect("Cannot create cutlist kind from intervals string");
+        .expect("Cannot create cut list kind from intervals string");
 
         // An intervals string can either be based on frame numbers or time, but
         // not both

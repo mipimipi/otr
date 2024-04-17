@@ -172,7 +172,7 @@ impl Video {
     /// The video file is moved accordingly. The real thing is done by _cut, the
     /// private counterpart function.
     /// cutlist_access specified how to (try to) get an appropriate cut list,
-    /// min_cutlist_rating specifies the minimum rating a cutlist must have when
+    /// min_cutlist_rating specifies the minimum rating a cut list must have when
     /// automatically selected from the cut list provider
     pub fn cut(
         &mut self,
@@ -280,7 +280,7 @@ impl Video {
     /// counterpart). The video status and path, and the video file is moved
     /// accordingly.
     /// cutlist_access specifies how to (try to) get an appropriate cut list,
-    /// min_cutlist_rating specifies the minimum rating a cutlist must have when
+    /// min_cutlist_rating specifies the minimum rating a cut list must have when
     /// automatically selected from the cut list provider
     fn _cut(
         &mut self,
