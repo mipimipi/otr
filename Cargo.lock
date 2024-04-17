@@ -270,6 +270,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
+name = "common"
+version = "0.9.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "const_format",
+ "dirs",
+ "lazy_static",
+ "log",
+ "once_cell",
+ "otr-utils",
+ "regex",
+ "reqwest",
+ "rust-ini",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "const-random"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1008,25 +1027,35 @@ name = "otr"
 version = "0.9.0"
 dependencies = [
  "anyhow",
+ "clap",
+ "common",
+ "indoc",
+ "itertools",
+ "log",
+ "once_cell",
+ "otr-utils",
+ "print_logger",
+ "rayon",
+ "regex",
+]
+
+[[package]]
+name = "otr-utils"
+version = "0.9.0"
+dependencies = [
+ "anyhow",
  "base64",
  "block-modes",
  "blowfish",
  "chrono",
- "clap",
  "const_format",
- "dirs",
  "hex",
- "indoc",
- "itertools",
  "lazy_static",
  "log",
  "md-5",
- "once_cell",
- "print_logger",
  "quick-xml",
  "rand",
  "random-string",
- "rayon",
  "regex",
  "reqwest",
  "rust-ini",

@@ -1,7 +1,7 @@
-use crate::video::{CutlistAccessType, CutlistID, CutlistRating};
 use clap::{Parser, Subcommand};
 use indoc::indoc;
 use once_cell::sync::OnceCell;
+use otr_utils::cutting::{CutlistAccessType, CutlistID, CutlistRating};
 use std::path::{Path, PathBuf};
 
 /// Converts cli parameters for cut list access into CutlistAccessType.

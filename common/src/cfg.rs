@@ -1,4 +1,4 @@
-use super::CutlistRating;
+use otr_utils::cutting::CutlistRating;
 
 use anyhow::{anyhow, Context};
 use log::*;

@@ -1,12 +1,12 @@
 mod cli;
-mod video;
 
 use anyhow::anyhow;
+use common::video::{self, Video};
 use itertools::Itertools;
 use log::*;
+use otr_utils::cutting;
 use rayon::prelude::*;
 use regex::Regex;
-use video::Video;
 
 /// Process videos (i.e., collect, move, decode and cut them). This is done in a
 /// dedicated function (with appropriate result type) to be able to use the ?
@@ -96,7 +96,7 @@ fn main() {
         .unwrap();
 
     // Check if mkvmerge is properly installed
-    if (cli::is_cut_command() || cli::is_process_command()) && !video::mkvmerge_is_installed() {
+    if (cli::is_cut_command() || cli::is_process_command()) && !cutting::mkvmerge_is_installed() {
         error!("mkvmerge is required by otr for cutting videos. Make sure that MKVToolnix is properly installed and that the mkvmerge binary is in your path");
         std::process::exit(1);
     }

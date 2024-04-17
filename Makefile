@@ -37,12 +37,12 @@ release:
 	fi
 	@VER_NEW=$(RELEASE); \
 	VER_NEW=$${VER_NEW#v}; \
-	VER_OLD=`sed -n "s/^version *= \"*\(.*\)\"/\1/p" ./Cargo.toml`; \
+	VER_OLD=`sed -n "s/^version *= \"*\(.*\)\"/\1/p" ./otr/Cargo.toml`; \
 	if ! [ $$((`vercmp $${VER_OLD} $${VER_NEW}`)) -lt 0 ]; then \
 		echo "new version is not greater than old version"; \
 		exit 1; \
 	fi; \
-	sed -i -e "s/^version.*/version = \"$${VER_NEW#v}\"/" ./Cargo.toml; \
+	sed -i -e "s/^version.*/version = \"$${VER_NEW#v}\"/" ./otr/Cargo.toml; \
 	cargo update
 	@git commit -a -s -m "release $(RELEASE)"
 	@git push

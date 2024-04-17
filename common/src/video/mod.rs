@@ -1,17 +1,17 @@
-mod cfg;
 mod collecting;
-mod cutting;
-mod decoding;
 mod dirs;
 
 pub use collecting::collect;
-pub use cutting::{mkvmerge_is_installed, CutlistAccessType, CutlistID, CutlistRating};
-use cutting::{CutError, CutlistCtrl};
 
+use super::cfg;
 use anyhow::{anyhow, Context};
 use dirs::DirKind;
 use lazy_static::lazy_static;
 use log::*;
+use otr_utils::{
+    cutting::{self, CutError, CutlistAccessType, CutlistCtrl, CutlistRating},
+    decoding,
+};
 use regex::Regex;
 use std::{
     cmp, fmt, fs,

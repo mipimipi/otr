@@ -126,7 +126,7 @@ fn cbc_key(user: &str, password: &str, now: &str) -> anyhow::Result<String> {
         + &now[6..]
         + &password_hash[19..32];
 
-    debug!("CBC_KEY: {}", as_serde!(cbc_key));
+    debug!(cbc_key:serde = cbc_key; "CBC_KEY");
 
     Ok(cbc_key)
 }
@@ -373,9 +373,8 @@ fn decoding_params_request(
         + "&D=";
     payload += &random_hex_string(512 - BLOCK_SIZE - payload.len());
 
-    debug!(
-        "Payload for decoding parameters request: {}",
-        as_serde!(payload)
+    debug!(payload:serde=payload;
+        "Payload for decoding parameters request"
     );
 
     // Encrypt payload
@@ -496,7 +495,7 @@ fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTR
         params.insert(a[0].to_string(), a[1].to_string());
     }
 
-    debug!("OTRKEY file parameters: {}", as_serde!(params));
+    debug!(params:serde = params; "OTRKEY file parameters");
 
     // Check if all parameters are there
     for key in must_have {
