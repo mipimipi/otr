@@ -39,9 +39,9 @@ impl fmt::Display for CutError {
         }
     }
 }
-/// Support conversion of an anyhow::Error into a CutError
+/// Support conversion of Error into CutError
 impl Error for CutError {}
-/// Support conversion of an anyhow::Error into CutError
+/// Support conversion of anyhow::Error into CutError
 impl From<anyhow::Error> for CutError {
     fn from(err: anyhow::Error) -> CutError {
         CutError::Any(err)

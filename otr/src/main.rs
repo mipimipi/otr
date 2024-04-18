@@ -79,8 +79,8 @@ fn main() {
     // Set up logging (i.e., which messages are displayed on stdout and stderr)
     print_logger::new()
         // Only allow log messages from otr and its sub modules
-        .targets_by_regex(&[Regex::new(&format!("^{}[::.+]*", module_path!())).unwrap()])
-        // Convert CLI of otr flags into level filter of log
+        .targets_by_regex(&[Regex::new("^[otr|common|otr_utils][::.+]*").unwrap()])
+        // Convert otr CLI flags into level filter of log
         .level_filter(if cli::quiet() {
             LevelFilter::Off
         } else {
