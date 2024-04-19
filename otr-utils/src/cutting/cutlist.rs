@@ -518,7 +518,7 @@ impl Cutlist {
         Ok(cutlist)
     }
 
-    /// Return an iterator for the cut list items of a ceratin kind
+    /// Return an iterator for the cut list items of a certain kind
     pub fn items(&self, kind: &Kind) -> anyhow::Result<std::slice::Iter<'_, Item>> {
         match self.items.get(kind) {
             Some(items) => Ok(items.iter()),

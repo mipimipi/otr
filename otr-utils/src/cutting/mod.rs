@@ -1,6 +1,7 @@
 mod cutlist;
 mod mkvmerge;
 
+use crate::info::Metadata;
 use cutlist::Cutlist;
 pub use cutlist::{
     AccessType as CutlistAccessType, Ctrl as CutlistCtrl, Rating as CutlistRating, ID as CutlistID,
