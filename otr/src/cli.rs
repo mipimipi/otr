@@ -186,13 +186,13 @@ enum Commands {
 	    group = "input",
             help = indoc! {"
             Cut list as sequence of intervals, either based on time or frame numbers. The
-            INTERVALS_STRING starts either with the key word \"frames\" or \"time\"
+            INTERVALS_STRING starts either with the key word \"frames\" or \"times\"
             respectively. After a colon, the list of intervals must be specified as
             \"[<START>,<END>]...\". Times must be given as [H...]H:MM:SS.ssssss, where
             \"ssssss\" denotes the sub seconds part as nano seconds. This part is
             optional.
             Examples:
-                \"time:[0:05:30,0:20:59.45]\"
+                \"times:[0:05:30,0:20:59.45]\"
                 \"frames:[123,45667][48345,679868]\""}
         )]
         intervals: Option<String>,

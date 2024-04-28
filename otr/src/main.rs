@@ -5,7 +5,6 @@ use common::video::{self, Video};
 use itertools::Itertools;
 use log::*;
 use otr_utils::cutting;
-use rayon::prelude::*;
 use regex::Regex;
 
 /// Process videos (i.e., collect, move, decode and cut them). This is done in a
@@ -41,11 +40,6 @@ fn process_videos() -> anyhow::Result<()> {
             }
             video
         })
-        // Cut videos in parallel. Result of the closure is the video (&mut
-        // Video), whether the cutting was successful or not. Errors are
-        // collected in an attribute of the video structure
-        .collect::<Vec<&mut Video>>()
-        .into_par_iter()
         .map(|video| {
             if cli::is_cut_command() || cli::is_process_command() {
                 video.cut(
@@ -95,9 +89,9 @@ fn main() {
         // Provoke dump in case of an error
         .unwrap();
 
-    // Check if mkvmerge is properly installed
-    if (cli::is_cut_command() || cli::is_process_command()) && !cutting::mkvmerge_is_installed() {
-        error!("mkvmerge is required by otr for cutting videos. Make sure that MKVToolnix is properly installed and that the mkvmerge binary is in your path");
+    // Check if ffmpeg is properly installed
+    if (cli::is_cut_command() || cli::is_process_command()) && !cutting::ffmpeg_is_installed() {
+        error!("ffmpeg is required by otr for cutting videos. Make sure it is properly installed and that the ffmpeg binaries are in your path");
         std::process::exit(1);
     }
 

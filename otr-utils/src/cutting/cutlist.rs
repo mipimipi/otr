@@ -10,15 +10,15 @@ use reqwest::{
 use serde::Deserialize;
 use std::{
     cmp::{self, Eq, PartialEq},
-    collections::HashMap,
     convert::TryFrom,
     env,
-    fmt::{self, Debug, Display},
+    fmt::Debug,
     fs,
-    hash::Hash,
     path::Path,
-    str,
+    str::{self, FromStr},
 };
+
+use super::interval::{self, Boundary, BoundaryType, Frame, Interval, Time};
 
 /// URI's for retrieving and submitting cut list data from/to cutlist.at
 const CUTLIST_RETRIEVE_HEADERS_URI: &str = "http://cutlist.at/getxml.php?name=";
@@ -52,10 +52,7 @@ lazy_static! {
     static ref RE_CUTLIST_ID: Regex =
         Regex::new(r"^ID=(\d+).*").unwrap();
     /// Reg exp for the intervals string
-    static ref RE_INTERVALS: Regex = Regex::new(r#"^(frames|time):((\[[^,]+,[^,]+\])+)$"#).unwrap();
-    /// Reg exp for the interval start/end of a cut list of kind "time"
-    static ref RE_TIME: Regex =
-        Regex::new(r#"^(\d+):([0-5]\d)+:([0-5]\d)+(\.(\d{0,6}))*$"#).unwrap();
+    static ref RE_INTERVALS: Regex = Regex::new(r#"^(?<type>frames|times):(?<intervals>\[.+\])$"#).unwrap();
 }
 
 /// Display an option: Print value as string in case of it is Some(value),
@@ -84,38 +81,6 @@ pub struct Ctrl<'a> {
     pub min_rating: Option<Rating>,
     pub access_token: Option<&'a str>,
     pub access_type: AccessType<'a>,
-}
-
-/// Type of cut list intervals - i.e., whether they are based on frame numbers or
-/// time
-#[derive(Clone, Default, Eq, Hash, PartialEq)]
-pub enum Kind {
-    #[default]
-    Frames,
-    Time,
-}
-impl TryFrom<&str> for Kind {
-    type Error = anyhow::Error;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s {
-            "frames" => Ok(Kind::Frames),
-            "time" => Ok(Kind::Time),
-            _ => Err(anyhow!("\"{}\" is not a valid kind of a cut list", s)),
-        }
-    }
-}
-impl Display for Kind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Kind::Frames => "frames",
-                Kind::Time => "time",
-            }
-        )
-    }
 }
 
 /// Cut list access type
@@ -249,74 +214,73 @@ pub fn headers_from_provider(
     Ok(headers)
 }
 
-/// Cut/interval of a cut list - i.e., a start and an end point
-pub struct Item {
-    pub start: f64,
-    pub end: f64,
-}
-impl Item {
-    // Create a new cut list item from a start point and a duration. If the new
-    // item would have a duration of zero, None is returned.
-    fn new(start: &str, duration: &str) -> anyhow::Result<Option<Item>> {
-        // convert start and duration to floating point
-        let start_f = start
-            .parse::<f64>()
-            .with_context(|| format!("Could not parse \"{}\" to floating point", start))?;
-        let duration_f = duration
-            .parse::<f64>()
-            .with_context(|| format!("Could not parse \"{}\" to floating point", duration))?;
+// Create a cut interval an ini structure
+// TODO: comment
+fn interval_from_ini<B>(cutlist_ini: &Ini, cut_no: usize) -> anyhow::Result<Option<Interval<B>>>
+where
+    B: Boundary,
+{
+    let cut_ini = cutlist_ini
+        .section(Some(format!("{}{}", CUTLIST_CUT_SECTION, cut_no)))
+        .with_context(|| format!("Could not find section for cut no {}", cut_no))?;
 
-        // Cut list items with zero duration (i.e., start and end point are
-        // equal) make no sense
-        if duration_f > 0.0 {
-            Ok(Some(Item {
-                start: start_f,
-                end: start_f + duration_f,
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
-    // Create a cut list item from a cut/interval from an ini structure
-    fn from_ini(cutlist_ini: &Ini, cut_no: i32, kind: &Kind) -> anyhow::Result<Option<Item>> {
-        let cut = cutlist_ini
-            .section(Some(format!("{}{}", CUTLIST_CUT_SECTION, cut_no)))
-            .with_context(|| format!("Could not find section for cut no {}", cut_no))?;
-        Item::new(
-            cut.get(item_attr_start(kind)).with_context(|| {
+    let (start, duration) = (
+        cut_ini
+            .get(item_attr_start(BoundaryType::from_str(
+                std::any::type_name::<B>(),
+            )?))
+            .with_context(|| {
                 format!(
                     "Could not find attribute \"{}\" for cut no {}",
-                    item_attr_start(kind),
+                    item_attr_start(BoundaryType::from_str(std::any::type_name::<B>()).unwrap()),
                     cut_no
                 )
-            })?,
-            cut.get(item_attr_duration(kind)).with_context(|| {
+            })
+            .ok(),
+        cut_ini
+            .get(item_attr_duration(BoundaryType::from_str(
+                std::any::type_name::<B>(),
+            )?))
+            .with_context(|| {
                 format!(
                     "Could not find attribute \"{}\" for cut no {}",
-                    item_attr_duration(kind),
+                    item_attr_duration(BoundaryType::from_str(std::any::type_name::<B>()).unwrap()),
                     cut_no
                 )
-            })?,
-        )
+            })
+            .ok(),
+    );
+
+    if start.is_none() || duration.is_none() {
+        return Ok(None);
+    }
+
+    Ok(Interval::<B>::from_start_duration(
+        B::from_str(start.unwrap())?,
+        B::from_str(duration.unwrap())?,
+    ))
+
+    // start_duration_to_from_to(start.unwrap(), duration.unwrap())?
+    //     .map(|(from, to)| Interval::<B>::new(B::from(from), B::from(to))),
+}
+
+/// Attribute name for start of a cut interval depending on the boundary type -
+/// i.e., frame or time
+fn item_attr_start(btype: BoundaryType) -> String {
+    if btype == BoundaryType::Frame {
+        CUTLIST_ITEM_FRAMES_START.to_string()
+    } else {
+        CUTLIST_ITEM_TIME_START.to_string()
     }
 }
 
-/// Attribute name for start of a cut interval depending on the kind, i.e. frame
-/// numbers or time
-fn item_attr_start(kind: &Kind) -> String {
-    match kind {
-        Kind::Frames => CUTLIST_ITEM_FRAMES_START.to_string(),
-        _ => CUTLIST_ITEM_TIME_START.to_string(),
-    }
-}
-
-/// Attribute name for the duration of a cut interval depending on the kind, i.e. frame
-/// numbers or time
-fn item_attr_duration(kind: &Kind) -> String {
-    match kind {
-        Kind::Frames => CUTLIST_ITEM_FRAMES_DURATION.to_string(),
-        _ => CUTLIST_ITEM_TIME_DURATION.to_string(),
+/// Attribute name for the duration of a cut interval depending on the boundary
+/// type - i.e., frame or time
+fn item_attr_duration(btype: BoundaryType) -> String {
+    if btype == BoundaryType::Frame {
+        CUTLIST_ITEM_FRAMES_DURATION.to_string()
+    } else {
+        CUTLIST_ITEM_TIME_DURATION.to_string()
     }
 }
 
@@ -325,7 +289,8 @@ fn item_attr_duration(kind: &Kind) -> String {
 #[derive(Default)]
 pub struct Cutlist {
     id: Option<ID>,
-    items: HashMap<Kind, Vec<Item>>, // intervals/cuts of cut list
+    frame_intervals: Option<Vec<Interval<Frame>>>,
+    time_intervals: Option<Vec<Interval<Time>>>,
 }
 
 /// Create a cut list from an ini structure
@@ -376,7 +341,7 @@ impl TryFrom<&Ini> for Cutlist {
                     display_option!(cutlist.id)
                 )
             })?
-            .parse::<i32>()
+            .parse::<usize>()
             .with_context(|| {
                 format!(
                     "Could not parse attribute \"{}\" in cutlist ID={}",
@@ -459,56 +424,35 @@ impl TryFrom<ID> for Cutlist {
 
 impl Cutlist {
     /// Creates a cut list from an intervals string, i.e. "frames:[...]" or
-    /// "[time:[...]"
+    /// "times:[...]"
     pub fn try_from_intervals(intervals: &str) -> anyhow::Result<Cutlist> {
         if !RE_INTERVALS.is_match(intervals) {
             return Err(anyhow!("\"{}\" is not a valid intervals string", intervals));
         }
 
-        let err_msg = format!("Cannot create cut list from \"{}\"", intervals);
-
-        let caps_intervals = RE_INTERVALS
-            .captures(intervals)
-            .unwrap_or_else(|| panic!("Cannot split intervals string since it is not valid"));
-
-        let kind = Kind::try_from(
-            caps_intervals
-                .get(1)
-                .unwrap_or_else(|| panic!("Cannot extract intervals type from intervals string"))
-                .as_str(),
-        )
-        .expect("Cannot create cut list kind from intervals string");
-
-        // An intervals string can either be based on frame numbers or time, but
-        // not both
         let mut cutlist = Cutlist::default();
-        cutlist.items.insert(kind.clone(), vec![]);
-        let items = cutlist.items.get_mut(&kind).unwrap();
+
+        // Extract boundary type and intervals string
+        let btype = BoundaryType::from_str(
+            RE_INTERVALS
+                .captures(intervals)
+                .unwrap()
+                .name("type")
+                .unwrap()
+                .as_str(),
+        )?;
+        let intervals = RE_INTERVALS
+            .captures(intervals)
+            .unwrap()
+            .name("intervals")
+            .unwrap()
+            .as_str();
 
         // Parse the actual intervals
-        for interval in caps_intervals
-            .get(2)
-            .unwrap_or_else(|| panic!("Cannot extract intervals from intervals string"))
-            .as_str()
-            .split(']')
-        {
-            if interval.is_empty() {
-                continue;
-            }
-            let mut points = interval[1..].split(',');
-            let start_str = points
-                .next()
-                .unwrap_or_else(|| panic!("Cannot extract left boundary of interval"))
-                .trim();
-            let end_str = points
-                .next()
-                .unwrap_or_else(|| panic!("Cannot extract right boundary of interval"))
-                .trim();
-
-            items.push(Item {
-                start: cut_str_to_f64(&kind, start_str).with_context(|| err_msg.clone())?,
-                end: cut_str_to_f64(&kind, end_str).with_context(|| err_msg.clone())?,
-            })
+        if btype == BoundaryType::Frame {
+            cutlist.frame_intervals = Some(interval::intervals_from_str::<Frame>(intervals)?)
+        } else {
+            cutlist.time_intervals = Some(interval::intervals_from_str::<Time>(intervals)?)
         }
 
         cutlist
@@ -518,22 +462,30 @@ impl Cutlist {
         Ok(cutlist)
     }
 
-    /// Return an iterator for the cut list items of a certain kind
-    pub fn items(&self, kind: &Kind) -> anyhow::Result<std::slice::Iter<'_, Item>> {
-        match self.items.get(kind) {
-            Some(items) => Ok(items.iter()),
-            None => Err(anyhow!("Cut list is not of kind \"{}\"", kind)),
+    /// Whether or not cut list has frame intervals
+    pub fn has_frame_intervals(&self) -> bool {
+        self.frame_intervals.is_some()
+    }
+
+    /// Whether or not cut list has time intervals
+    pub fn has_time_intervals(&self) -> bool {
+        self.time_intervals.is_some()
+    }
+
+    /// Provide iterator for frame intervals
+    pub fn frame_intervals(&self) -> anyhow::Result<std::slice::Iter<'_, Interval<Frame>>> {
+        match &self.frame_intervals {
+            Some(frame_intervals) => Ok(frame_intervals.iter()),
+            None => Err(anyhow!("Cut list does not have frame intervals")),
         }
     }
 
-    /// Checks is cut list contain items of a ceratin kind
-    pub fn is_of_kind(&self, kind: &Kind) -> bool {
-        self.items.contains_key(kind)
-    }
-
-    /// Iterator over the kinds of a cut list
-    pub fn kinds(&self) -> std::collections::hash_map::Keys<'_, Kind, std::vec::Vec<Item>> {
-        self.items.keys()
+    /// Provide iterator for frame intervals
+    pub fn time_intervals(&self) -> anyhow::Result<std::slice::Iter<'_, Interval<Time>>> {
+        match &self.time_intervals {
+            Some(time_intervals) => Ok(time_intervals.iter()),
+            None => Err(anyhow!("Cut list does not have time intervals")),
+        }
     }
 
     /// Submit cut list to cutlist.at and set the cut list ID in self from the
@@ -613,41 +565,42 @@ impl Cutlist {
 
     // Retrieves cut number cut_no from ini structure, creates a cut list item
     // from it and appends it to the cut list
-    fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: i32) -> anyhow::Result<()> {
-        if cut_no == 0 {
-            // In case of the first cut, it is checked which kinds (frame numbers
-            // and/or time) are supported. The corresponding item arrays are
-            // created respectively
-            for kind in [&Kind::Frames, &Kind::Time] {
-                if let Ok(Some(item)) = Item::from_ini(cutlist_ini, cut_no, kind) {
-                    self.items.insert(kind.clone(), vec![item]);
-                }
-            }
-        } else {
-            for kind in [&Kind::Frames, &Kind::Time] {
-                if self.is_of_kind(kind) {
-                    if let Some(item) =
-                        Item::from_ini(cutlist_ini, cut_no, kind).context(format!(
-                    "Cut no {} does not contain {} information, though the cut list supports that",
-                    cut_no, kind,
-                ))? {
-                        self.items.get_mut(kind).unwrap().push(item);
-                    }
-                }
+    fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: usize) -> anyhow::Result<()> {
+        // TODO: extract logic below in separate generic function<B>?
+
+        // Try to retrieve and add frame interval
+        if let Some(interval) = interval_from_ini::<Frame>(cutlist_ini, cut_no)? {
+            if cut_no == 0 {
+                self.frame_intervals = Some(vec![interval]);
+            } else if self.has_frame_intervals() {
+                self.frame_intervals.as_mut().unwrap().push(interval)
+            } else {
+                return Err(anyhow!("TODO"));
             }
         }
+        // Try to retrieve and add time interval
+        if let Some(interval) = interval_from_ini::<Time>(cutlist_ini, cut_no)? {
+            if cut_no == 0 {
+                self.time_intervals = Some(vec![interval]);
+            } else if self.has_time_intervals() {
+                self.time_intervals.as_mut().unwrap().push(interval)
+            } else {
+                return Err(anyhow!("TODO"));
+            }
+        }
+
         Ok(())
     }
 
     /// Length of cut list (i.e., the number of cuts). If the cut list has both,
-    /// frames and time intervals/cuts, the number of cuts must be equal, since
+    /// frame and time intervals, the number of cuts must be equal, since
     /// otherwise the cut list was invalid
     fn len(&self) -> usize {
-        if self.is_of_kind(&Kind::Frames) {
-            return self.items.get(&Kind::Frames).unwrap().len();
+        if self.has_frame_intervals() {
+            return self.frame_intervals.as_ref().unwrap().len();
         }
-        if self.is_of_kind(&Kind::Time) {
-            return self.items.get(&Kind::Time).unwrap().len();
+        if self.has_time_intervals() {
+            return self.time_intervals.as_ref().unwrap().len();
         }
         0
     }
@@ -659,7 +612,6 @@ impl Cutlist {
         P: AsRef<Path>,
     {
         let mut cutlist_ini = Ini::new();
-        let num_cuts = self.len();
         let file_name = video_path.as_ref().file_name().unwrap().to_str().unwrap();
 
         // Section "[General]"
@@ -667,8 +619,8 @@ impl Cutlist {
             .with_section(Some(CUTLIST_GENERAL_SECTION))
             .set(CUTLIST_APPLICATION, env!("CARGO_PKG_NAME"))
             .set(CUTLIST_VERSION, env!("CARGO_PKG_VERSION"))
-            .set(CUTLIST_INTENDED_CUT_APP, "mkvmerge")
-            .set(CUTLIST_NUM_OF_CUTS, format!("{}", num_cuts))
+            .set(CUTLIST_INTENDED_CUT_APP, "ffmpeg")
+            .set(CUTLIST_NUM_OF_CUTS, format!("{}", self.len()))
             .set(CUTLIST_APPLY_TO_FILE, file_name)
             .set(
                 CUTLIST_ORIG_FILE_SIZE,
@@ -681,20 +633,40 @@ impl Cutlist {
             );
 
         // Sections "[CutN]" for N=0,...,<number-of-cuts>-1
-        for i in 0..num_cuts {
-            for kind in self.items.keys() {
+        for i in 0..self.len() {
+            // TODO: extract logic below in separate generic function<B>?
+
+            // Write frame interval
+            if self.has_frame_intervals() {
                 cutlist_ini
                     .with_section(Some(format!("{}{}", CUTLIST_CUT_SECTION, i)))
                     .set(
-                        item_attr_start(kind),
-                        format!("{}", self.items.get(kind).unwrap()[i].start),
+                        item_attr_start(BoundaryType::Frame),
+                        format!("{}", self.frame_intervals.as_ref().unwrap()[i].from()),
                     )
                     .set(
-                        item_attr_duration(kind),
+                        item_attr_duration(BoundaryType::Frame),
                         format!(
                             "{}",
-                            self.items.get(kind).unwrap()[i].end
-                                - self.items.get(kind).unwrap()[i].start,
+                            self.frame_intervals.as_ref().unwrap()[i].to()
+                                - self.frame_intervals.as_ref().unwrap()[i].from()
+                        ),
+                    );
+            }
+            // Write time interval
+            if self.has_time_intervals() {
+                cutlist_ini
+                    .with_section(Some(format!("{}{}", CUTLIST_CUT_SECTION, i)))
+                    .set(
+                        item_attr_start(BoundaryType::Time),
+                        format!("{}", self.time_intervals.as_ref().unwrap()[i].from()),
+                    )
+                    .set(
+                        item_attr_duration(BoundaryType::Time),
+                        format!(
+                            "{}",
+                            self.time_intervals.as_ref().unwrap()[i].to()
+                                - self.time_intervals.as_ref().unwrap()[i].from()
                         ),
                     );
             }
@@ -712,24 +684,31 @@ impl Cutlist {
     /// array exists, whether the intervals of an array do not overlap and
     /// whether the start is before the end of each interval
     fn validate(&self) -> anyhow::Result<()> {
-        if self.items.is_empty() {
+        if !self.has_frame_intervals() && !self.has_time_intervals() {
             return Err(anyhow!("Cut list does not contain intervals"));
         }
 
-        // kind is just needed for the error messages
-        fn validate_intervals(kind: &Kind, items: &Vec<Item>) -> anyhow::Result<()> {
-            let last_item: Option<&Item> = None;
+        fn validate_intervals<B>(intervals: &Vec<Interval<B>>) -> anyhow::Result<()>
+        where
+            B: Boundary,
+        {
+            let last_interval: Option<&Interval<B>> = None;
 
-            for item in items {
-                if item.start > item.end {
+            for interval in intervals {
+                if interval.from() > interval.to() {
                     return Err(anyhow!(
-                        "Cut list {} intervals are invalid: Start is after end",
-                        kind
+                        "Cut list intervals are invalid: Start ({}) is after end ({})",
+                        interval.from(),
+                        interval.to()
                     ));
                 }
-                if let Some(last_item) = last_item {
-                    if last_item.end > item.start {
-                        return Err(anyhow!("Cut list {} intervals overlap", kind));
+                if let Some(last_interval) = last_interval {
+                    if last_interval.to() > interval.from() {
+                        return Err(anyhow!(
+                            "Cut list intervals overlap: {} > {}",
+                            last_interval.to(),
+                            interval.from()
+                        ));
                     }
                 }
             }
@@ -738,77 +717,23 @@ impl Cutlist {
 
         // If cut list contains time and frames intervals, both must have the
         // same number of items
-        if self.is_of_kind(&Kind::Frames)
-            && self.is_of_kind(&Kind::Time)
-            && self.items.get(&Kind::Frames).unwrap().len()
-                != self.items.get(&Kind::Time).unwrap().len()
+        if self.has_frame_intervals()
+            && self.has_time_intervals()
+            && self.frame_intervals.as_ref().unwrap().len()
+                != self.time_intervals.as_ref().unwrap().len()
         {
             return Err(anyhow!(
-                "Cut list has time and frames intervals, but the number of cuts differ"
+                "Cut list has time and frame intervals, but the numbers of intervals differ"
             ));
         }
 
-        if self.is_of_kind(&Kind::Frames) {
-            validate_intervals(&Kind::Frames, self.items.get(&Kind::Frames).unwrap())?;
+        if self.has_frame_intervals() {
+            validate_intervals(self.frame_intervals.as_ref().unwrap())?;
         }
-        if self.is_of_kind(&Kind::Time) {
-            validate_intervals(&Kind::Time, self.items.get(&Kind::Time).unwrap())?;
+        if self.has_frame_intervals() {
+            validate_intervals(self.time_intervals.as_ref().unwrap())?;
         }
 
         Ok(())
-    }
-}
-
-/// Converts the string representation of an interval start or end into a
-/// floating point number
-fn cut_str_to_f64(kind: &Kind, cut_str: &str) -> anyhow::Result<f64> {
-    match kind {
-        Kind::Frames => cut_str.parse::<f64>().with_context(|| {
-            format!(
-                "Could not parse frames cut string \"{}\" to floating point",
-                cut_str
-            )
-        }),
-        Kind::Time => {
-            if !RE_TIME.is_match(cut_str) {
-                return Err(anyhow!("\"{}\" is not a valid time cut string", cut_str));
-            }
-
-            let caps = RE_TIME
-                .captures(cut_str)
-                .unwrap_or_else(|| panic!("Time cut string has invalid format"));
-            let hours = caps
-                .get(1)
-                .unwrap_or_else(|| panic!("Cannot extract hours from time cut string"))
-                .as_str()
-                .parse::<f64>()
-                .expect("Cannot convert hours from time cut string to float");
-            let mins = caps
-                .get(2)
-                .unwrap_or_else(|| panic!("Cannot extract minutes from time cut string"))
-                .as_str()
-                .parse::<f64>()
-                .expect("Cannot convert minutes from time cut string to float");
-            let secs = caps
-                .get(3)
-                .unwrap_or_else(|| panic!("Cannot extract seconds from time cut string"))
-                .as_str()
-                .parse::<f64>()
-                .expect("Cannot convert seconds from time cut string to float");
-
-            Ok(hours * 3600.0
-                + mins * 60.0
-                + secs
-                + match caps.get(5) {
-                    Some(subs_match) => {
-                        let subs_str = subs_match.as_str();
-                        let subs = subs_str
-                            .parse::<f64>()
-                            .expect("Cannot convert sub seconds from time cut string to float");
-                        subs * f64::powf(10_f64, -(subs_str.len() as f64))
-                    }
-                    None => 0.0,
-                })
-        }
     }
 }

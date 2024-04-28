@@ -1,12 +1,15 @@
 mod cutlist;
-mod mkvmerge;
+mod ffmpeg;
+mod info;
+mod interval;
 
-use crate::info::Metadata;
+use crate::dirs::tmp_dir;
+
 use cutlist::Cutlist;
 pub use cutlist::{
     AccessType as CutlistAccessType, Ctrl as CutlistCtrl, Rating as CutlistRating, ID as CutlistID,
 };
-pub use mkvmerge::is_installed as mkvmerge_is_installed;
+pub use ffmpeg::is_installed as ffmpeg_is_installed;
 
 use anyhow::{anyhow, Context};
 use log::*;
@@ -54,7 +57,7 @@ impl From<anyhow::Error> for CutError {
 ///   to-be-cut video file
 /// - out_path is the path of resulting file
 /// - tmp_dir is the directory where OTR stores the cut list (provided a cut list
-///   file is genererated and uploaded to cutlist.at)
+///   file is genererated and uploaded to cutlist.at) and other temporary data
 /// - cutlist_ctrl contains attributes to control handling of cut lists, such as
 ///   - access_type: specifies how to (try to) get an appropriate cut list
 ///   - min_rating: specifies the minimum rating a cut list must have when
@@ -64,17 +67,13 @@ impl From<anyhow::Error> for CutError {
 ///     sense if a video is cut based on intervals
 ///   - rating: rating of the to-be-uploaded cut lists (overwriting the default
 ///     which is defined in the configuration file)
-pub fn cut<P, Q, T>(
-    in_path: P,
-    out_path: Q,
-    tmp_dir: T,
-    cutlist_ctrl: &CutlistCtrl,
-) -> Result<(), CutError>
+pub fn cut<P, Q>(in_path: P, out_path: Q, cutlist_ctrl: &CutlistCtrl) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
-    T: AsRef<Path>,
 {
+    let tmp_dir = tmp_dir()?;
+
     // Call specialized cut functions based on the cut list access type that was
     // submitted
     match cutlist_ctrl.access_type {
@@ -87,23 +86,34 @@ where
             cutlist_ctrl.access_token,
             cutlist_ctrl.rating,
         ),
-        cutlist::AccessType::File(file) => cut_with_cutlist_from_file(in_path, out_path, file),
-        cutlist::AccessType::ID(id) => cut_with_cutlist_from_provider_by_id(in_path, out_path, id),
-        _ => cut_with_cutlist_from_provider_auto_select(in_path, out_path, cutlist_ctrl.min_rating),
+        cutlist::AccessType::File(file) => {
+            cut_with_cutlist_from_file(in_path, out_path, tmp_dir, file)
+        }
+        cutlist::AccessType::ID(id) => {
+            cut_with_cutlist_from_provider_by_id(in_path, out_path, tmp_dir, id)
+        }
+        _ => cut_with_cutlist_from_provider_auto_select(
+            in_path,
+            out_path,
+            tmp_dir,
+            cutlist_ctrl.min_rating,
+        ),
     }
 }
 
 /// Cut a video with a cut list read from an INI file. in_path is the path of the
 /// decoded video file. out_path is the path of the cut video file.
-fn cut_with_cutlist_from_file<P, Q, R>(
+fn cut_with_cutlist_from_file<P, Q, R, T>(
     in_path: P,
     out_path: Q,
+    tmp_dir: T,
     cutlist_path: R,
 ) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
     R: AsRef<Path>,
+    T: AsRef<Path>,
 {
     trace!(
         "Cutting \"{}\" with cut list from \"{}\"",
@@ -113,7 +123,7 @@ where
 
     let cutlist = Cutlist::try_from(cutlist_path.as_ref())?;
 
-    match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist).context(format!(
+    match ffmpeg::cut(in_path, out_path, tmp_dir, &cutlist).context(format!(
         "Could not cut video with cut list from \"{}\"",
         cutlist_path.as_ref().display()
     )) {
@@ -145,7 +155,12 @@ where
 
     let mut cutlist = Cutlist::try_from_intervals(intervals.as_ref())?;
 
-    if let Err(err) = mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist) {
+    if let Err(err) = ffmpeg::cut(
+        in_path.as_ref(),
+        out_path.as_ref(),
+        tmp_dir.as_ref(),
+        &cutlist,
+    ) {
         return Err(CutError::Any(
             err.context(format!("Could not cut video with {}", intervals)),
         ));
@@ -174,14 +189,16 @@ where
 /// Cut a video with a cut list retrieved from a provider by cut list id. in_path
 /// is the path of the decoded video file. out_path is the path of the cut video
 /// file.
-fn cut_with_cutlist_from_provider_by_id<P, Q>(
+fn cut_with_cutlist_from_provider_by_id<P, Q, T>(
     in_path: P,
     out_path: Q,
+    tmp_dir: T,
     id: u64,
 ) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
+    T: AsRef<Path>,
 {
     trace!(
         "Cutting \"{}\" with cut list id {} from provider",
@@ -191,7 +208,7 @@ where
 
     // Retrieve cut lists from provider and cut video
     match Cutlist::try_from(id) {
-        Ok(cutlist) => match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist) {
+        Ok(cutlist) => match ffmpeg::cut(in_path, out_path, tmp_dir, &cutlist) {
             Ok(_) => Ok(()),
             Err(err) => Err(CutError::Any(
                 anyhow!(err).context(format!("Could not cut video with cut list {}", id)),
@@ -208,14 +225,16 @@ where
 /// in_path is the path of the decoded video file.  out_path is the path of the
 /// cut video file. min_cutlist_rating specifies the minimum rating a cut list
 /// must have to be accepted
-fn cut_with_cutlist_from_provider_auto_select<P, Q>(
+fn cut_with_cutlist_from_provider_auto_select<P, Q, T>(
     in_path: P,
     out_path: Q,
+    tmp_dir: T,
     min_cutlist_rating: Option<CutlistRating>,
 ) -> Result<(), CutError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
+    T: AsRef<Path>,
 {
     let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap();
 
@@ -232,21 +251,28 @@ where
     let mut is_cut = false;
     for header in headers {
         match Cutlist::try_from(header.id()) {
-            Ok(cutlist) => match mkvmerge::cut(in_path.as_ref(), out_path.as_ref(), &cutlist) {
-                Ok(_) => {
-                    is_cut = true;
-                    break;
+            Ok(cutlist) => {
+                match ffmpeg::cut(
+                    in_path.as_ref(),
+                    out_path.as_ref(),
+                    tmp_dir.as_ref(),
+                    &cutlist,
+                ) {
+                    Ok(_) => {
+                        is_cut = true;
+                        break;
+                    }
+                    Err(err) => {
+                        error!(
+                            "{:?}",
+                            anyhow!(err).context(format!(
+                                "Could not cut video with cut list ID={}",
+                                header.id()
+                            ))
+                        );
+                    }
                 }
-                Err(err) => {
-                    error!(
-                        "{:?}",
-                        anyhow!(err).context(format!(
-                            "Could not cut video with cut list ID={}",
-                            header.id()
-                        ))
-                    );
-                }
-            },
+            }
             Err(err) => {
                 error!(
                     "{:?}",

@@ -299,7 +299,6 @@ impl Video {
         match cutting::cut(
             &self,
             self.next_path()?,
-            dirs::tmp_dir()?,
             &CutlistCtrl {
                 access_type: cutlist_access,
                 min_rating: min_cutlist_rating.or_else(cfg::min_cutlist_rating),
