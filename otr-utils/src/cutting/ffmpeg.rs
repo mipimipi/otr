@@ -183,9 +183,9 @@ where
             trace!("Converted interval to key frames: {}", interval_kf,);
 
             if interval_f.from() < interval_kf.from() {
-                if let Some(interval) =
-                    Interval::<Frame>::from_from_to(interval_f.from(), interval_kf.from() - 1)
-                {
+                let interval =
+                    Interval::<Frame>::from_from_to(interval_f.from(), interval_kf.from() - 1);
+                if !interval.is_empty() {
                     // Re-encode prefix part of interval (from original "from" frame to frame
                     // before first key frame)
                     encode_interval(
@@ -211,9 +211,9 @@ where
             .context(err_msg.clone())?;
 
             if interval_f.to() > interval_kf.to() {
-                if let Some(interval) =
-                    Interval::<Frame>::from_from_to(interval_kf.to() + 1, interval_f.to())
-                {
+                let interval =
+                    Interval::<Frame>::from_from_to(interval_kf.to() + 1, interval_f.to());
+                if !interval.is_empty() {
                     // Re-encode postfix part of interval (from frame after key frame to
                     // original "to" frame
                     encode_interval(
@@ -273,8 +273,10 @@ where
     trace!("Copying interval {} ...", interval);
 
     // Copy an interval from video file with ffmpeg
+    // Note: Option -y is necessary to overwrite files without asking
     let output: Output = cmd!(
         "ffmpeg",
+        "-y",
         "-ss",
         format!("{}", interval.from()),
         "-t",
@@ -328,7 +330,9 @@ where
     trace!("Re-encoding interval {} ...", interval);
 
     // Assemble arguments for call of ffmpeg
+    // Note: Option -y is necessary to overwrite files without asking
     let mut args: Vec<OsString> = vec![
+        "-y".into(),
         "-ss".into(),
         format!("{}", interval.from()).into(),
         "-t".into(),
@@ -450,8 +454,10 @@ where
             // Execute ffmpeg to concatenate partial cut files
             // Note: If absolute paths were used, ffmpeg would have to be called with
             //       "-safe 0"
+            // Note: Option -y is necessary to overwrite files without asking
             let output: Output = cmd!(
                 "ffmpeg",
+                "-y",
                 "-f",
                 "concat",
                 "-i",

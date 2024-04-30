@@ -285,10 +285,10 @@ where
 {
     type Err = anyhow::Error;
 
-    // s must have the form "[<FROM-STRING>,<TO-STRING>]", where FROM_STRING and
-    // TO_STRING must be according to the corresponding boundary type
+    /// s must have the form "[<FROM-STRING>,<TO-STRING>]", where FROM_STRING and
+    /// TO_STRING must be according to the corresponding boundary type
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if RE_INTERVAL.is_match(s) {
+        if !RE_INTERVAL.is_match(s) {
             return Err(anyhow!("\"{}\" is not a valid interval", s));
         }
 
@@ -317,30 +317,22 @@ impl<B> Interval<B>
 where
     B: Boundary,
 {
-    // Creates an interval with from an to as boundaries. If form == to - i.e.,
-    // an interval of length 0 would be created - None is returned. Otherwise,
-    // Some(interval) is returned
-    pub fn from_from_to(from: B, to: B) -> Option<Self> {
-        if from == to {
-            None
-        } else if from < to {
-            Some(Interval::<B> { from, to })
+    /// Creates an interval with from an to as boundaries. If required, from and
+    /// to is switched to make sure that interval.form <= interval.to
+    pub fn from_from_to(from: B, to: B) -> Self {
+        if from < to {
+            Interval::<B> { from, to }
         } else {
-            Some(Interval::<B> { from: to, to: from })
+            Interval::<B> { from: to, to: from }
         }
     }
 
-    // Creates an interval with start as lower boundary and start + duration as
-    // upper boundary. In case duration is 0, None is returned, otherwise
-    // Some(interval)
-    pub fn from_start_duration(start: B, duration: B) -> Option<Self> {
-        if Into::<f64>::into(duration) == 0.0 {
-            None
-        } else {
-            Some(Interval::<B> {
-                from: start,
-                to: start + duration,
-            })
+    /// Creates an interval with start as lower boundary and start + duration as
+    /// upper boundary
+    pub fn from_start_duration(start: B, duration: B) -> Self {
+        Interval::<B> {
+            from: start,
+            to: start + duration,
         }
     }
 
@@ -356,17 +348,25 @@ where
         Into::<f64>::into(self.to - self.from)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0.0
+    }
+
     pub fn to_frames(&self, metadata: &Metadata) -> anyhow::Result<Interval<Frame>> {
+        let err_msg = format!("Could not convert interval {} into frames", self);
+
         Ok(Interval::<Frame> {
-            from: self.from.to_frame(metadata)?,
-            to: self.to.to_frame(metadata)?,
+            from: self.from.to_frame(metadata).context(err_msg.clone())?,
+            to: self.to.to_frame(metadata).context(err_msg.clone())?,
         })
     }
 
     pub fn to_times(&self, metadata: &Metadata) -> anyhow::Result<Interval<Time>> {
+        let err_msg = format!("Could not convert interval {} into times", self);
+
         Ok(Interval::<Time> {
-            from: self.from.to_time(metadata)?,
-            to: self.to.to_time(metadata)?,
+            from: self.from.to_time(metadata).context(err_msg.clone())?,
+            to: self.to.to_time(metadata).context(err_msg.clone())?,
         })
     }
 }
@@ -403,9 +403,10 @@ where
     // Split string into sub strings, where each sub string contains a single
     // interval string and create an interval from it
     for s in s.split_inclusive(']').collect::<Vec<_>>() {
-        let interval = Interval::<B>::from_str(s)?;
+        let interval = Interval::<B>::from_str(s)
+            .context(format!("Could not convert \"{}\" into intervals", s))?;
         // Only accept intervals of length greater than zero
-        if interval.len() > 0.0 {
+        if !interval.is_empty() {
             intervals.push(interval)
         }
     }

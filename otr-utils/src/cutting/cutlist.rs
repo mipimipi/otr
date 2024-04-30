@@ -214,14 +214,21 @@ pub fn headers_from_provider(
     Ok(headers)
 }
 
-// Create a cut interval from an INI structure
-fn interval_from_ini<B>(cutlist_ini: &Ini, cut_no: usize) -> anyhow::Result<Option<Interval<B>>>
+/// Create a cut interval from an INI structure. If an interval of length zero
+/// would be created, Ok(None) is returned. Ok(Some(Interval<B>)) otherwise
+fn interval_from_ini<B>(cutlist_ini: &Ini, cut_no: usize) -> anyhow::Result<Interval<B>>
 where
     B: Boundary,
 {
+    let err_msg = format!(
+        "Could not create interval from INI structure for cut internal no {}",
+        cut_no
+    );
+
     let cut_ini = cutlist_ini
         .section(Some(format!("{}{}", CUTLIST_CUT_SECTION, cut_no)))
-        .context(format!("Could not find section for cut no {}", cut_no))?;
+        .context(format!("Could not find section for cut no {}", cut_no))
+        .context(err_msg.clone())?;
 
     let (start, duration) = (
         cut_ini
@@ -250,16 +257,23 @@ where
             .ok(),
     );
 
-    if start.is_none() || duration.is_none() {
-        return Ok(None);
+    if start.is_none() {
+        return Err(
+            anyhow!("Could not retrieve start attribute from INI structure").context(err_msg),
+        );
+    }
+    if duration.is_none() {
+        return Err(
+            anyhow!("Could not retrieve duration attribute from INI structure").context(err_msg),
+        );
     }
 
     // Though start.unwrap() and duration.unwrap() are &str, a conversion to f64
     // is done since the strings are no valid time strings (in case the interval
     // is provided as time interval)
     Ok(Interval::<B>::from_start_duration(
-        B::from(start.unwrap().parse::<f64>()?),
-        B::from(duration.unwrap().parse::<f64>()?),
+        B::from(start.unwrap().parse::<f64>().context(err_msg.clone())?),
+        B::from(duration.unwrap().parse::<f64>().context(err_msg.clone())?),
     ))
 }
 
@@ -584,9 +598,8 @@ impl Cutlist {
         );
 
         // Try to retrieve and add frame interval
-        if let Some(interval) =
-            interval_from_ini::<Frame>(cutlist_ini, cut_no).context(err_msg.clone())?
-        {
+        let interval = interval_from_ini::<Frame>(cutlist_ini, cut_no).context(err_msg.clone())?;
+        if !interval.is_empty() {
             if cut_no == 0 {
                 self.frame_intervals = Some(vec![interval]);
             } else if self.has_frame_intervals() {
@@ -599,9 +612,8 @@ impl Cutlist {
             }
         }
         // Try to retrieve and add time interval
-        if let Some(interval) =
-            interval_from_ini::<Time>(cutlist_ini, cut_no).context(err_msg.clone())?
-        {
+        let interval = interval_from_ini::<Time>(cutlist_ini, cut_no).context(err_msg.clone())?;
+        if !interval.is_empty() {
             if cut_no == 0 {
                 self.time_intervals = Some(vec![interval]);
             } else if self.has_time_intervals() {
@@ -659,7 +671,7 @@ impl Cutlist {
 
         // Sections "[CutN]" for N=0,...,<number-of-cuts>-1
         for i in 0..self.len() {
-            // TODO: extract logic below in separate generic function<B>?
+            // TODO: extract logic below in separate generic function?
 
             // Write frame interval
             if self.has_frame_intervals() {
