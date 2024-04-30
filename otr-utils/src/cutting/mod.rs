@@ -3,14 +3,6 @@ mod ffmpeg;
 mod info;
 mod interval;
 
-use crate::dirs::tmp_dir;
-
-use cutlist::Cutlist;
-pub use cutlist::{
-    AccessType as CutlistAccessType, Ctrl as CutlistCtrl, Rating as CutlistRating, ID as CutlistID,
-};
-pub use ffmpeg::is_installed as ffmpeg_is_installed;
-
 use anyhow::{anyhow, Context};
 use log::*;
 use std::{
@@ -19,6 +11,15 @@ use std::{
     path::Path,
     str,
 };
+
+use super::dirs::tmp_dir;
+use cutlist::Cutlist;
+use info::Metadata;
+
+pub use cutlist::{
+    AccessType as CutlistAccessType, Ctrl as CutlistCtrl, Rating as CutlistRating, ID as CutlistID,
+};
+pub use ffmpeg::is_installed as ffmpeg_is_installed;
 
 /// Special error type for cutting videos to be able to handle specific
 /// situations - e.g., if no cut list exists
@@ -123,7 +124,7 @@ where
 
     let cutlist = Cutlist::try_from(cutlist_path.as_ref())?;
 
-    match ffmpeg::cut(in_path, out_path, tmp_dir, &cutlist).context(format!(
+    match cut_with_cutlist(in_path, out_path, tmp_dir, &cutlist).context(format!(
         "Could not cut video with cut list from \"{}\"",
         cutlist_path.as_ref().display()
     )) {
@@ -155,7 +156,7 @@ where
 
     let mut cutlist = Cutlist::try_from_intervals(intervals.as_ref())?;
 
-    if let Err(err) = ffmpeg::cut(
+    if let Err(err) = cut_with_cutlist(
         in_path.as_ref(),
         out_path.as_ref(),
         tmp_dir.as_ref(),
@@ -208,7 +209,7 @@ where
 
     // Retrieve cut lists from provider and cut video
     match Cutlist::try_from(id) {
-        Ok(cutlist) => match ffmpeg::cut(in_path, out_path, tmp_dir, &cutlist) {
+        Ok(cutlist) => match cut_with_cutlist(in_path, out_path, tmp_dir, &cutlist) {
             Ok(_) => Ok(()),
             Err(err) => Err(CutError::Any(
                 anyhow!(err).context(format!("Could not cut video with cut list {}", id)),
@@ -252,7 +253,7 @@ where
     for header in headers {
         match Cutlist::try_from(header.id()) {
             Ok(cutlist) => {
-                match ffmpeg::cut(
+                match cut_with_cutlist(
                     in_path.as_ref(),
                     out_path.as_ref(),
                     tmp_dir.as_ref(),
@@ -290,4 +291,71 @@ where
     }
 
     Ok(())
+}
+
+/// Cut a video file stored in in_path with ffmpeg using the given cut list.
+/// The cut video is stored in out_path.
+fn cut_with_cutlist<I, O, T>(
+    in_path: I,
+    out_path: O,
+    tmp_dir: T,
+    cutlist: &Cutlist,
+) -> anyhow::Result<()>
+where
+    I: AsRef<Path>,
+    O: AsRef<Path>,
+    T: AsRef<Path>,
+{
+    trace!("Cutting video with ffmpeg ...");
+
+    // Retrieve metadata of video to be cut
+    let metadata = Metadata::new(&in_path)?;
+
+    // Try all available kinds (frame numbers, time). After the cutting was
+    // successful for one of them, exit:
+
+    // (1) Try cutting with frame intervals
+    if cutlist.has_frame_intervals() {
+        if !metadata.has_frames() {
+            trace!("Since video has no frames, frame-based cut intervals cannot be used");
+        } else if let Err(err) = ffmpeg::cut(
+            &in_path,
+            &out_path,
+            &tmp_dir,
+            cutlist.frame_intervals()?,
+            &metadata,
+        ) {
+            warn!(
+                "Could not cut \"{}\" with frame intervals: {:?}",
+                in_path.as_ref().display(),
+                err
+            );
+        } else {
+            trace!("Cut video with ffmpeg");
+
+            return Ok(());
+        }
+    }
+
+    // (2) Try cutting with time intervals
+    if cutlist.has_time_intervals() {
+        if let Err(err) = ffmpeg::cut(
+            &in_path,
+            &out_path,
+            &tmp_dir,
+            cutlist.time_intervals()?,
+            &metadata,
+        ) {
+            warn!(
+                "Could not cut \"{}\" with time intervals: {:?}",
+                in_path.as_ref().display(),
+                err
+            );
+        } else {
+            trace!("Cut video with ffmpeg");
+            return Ok(());
+        }
+    }
+
+    Err(anyhow!("Could not cut video with ffmpeg"))
 }

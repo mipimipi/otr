@@ -9,30 +9,22 @@ use std::{
 
 use super::info::Metadata;
 
-// Regular expressions
-lazy_static! {
-    /// Reg exp for a string of intervals
-    static ref RE_INTERVALS: Regex = Regex::new(r#"^(?<interval>\[[^\[\],]+,[^\[\],]+\])+$"#).unwrap();
-    /// Reg exp for a string representing one interval
-    static ref RE_INTERVAL: Regex = Regex::new(r#"^\[(?<from>[^\[\],]+),(?<to>[^\[\],]+)\]$"#).unwrap();
-    /// Reg exp for the string representation of the time boundary of an interval
-    static ref RE_TIME: Regex =
-        Regex::new(r#"^(\d+):([0-5]\d)+:([0-5]\d)+(\.(\d{0,6}))*$"#).unwrap();
-}
-
-/// Generalization for interval boundary - i.e., a timestamp or frame number
+/// Generalization of an interval boundary - i.e., a timestamp or frame number
 pub trait Boundary:
     Clone
     + Copy
-    + Debug
     + Display
     + FromStr<Err = anyhow::Error>
     + From<f64>
+    + Into<f64>
     + Add<Output = Self>
     + Sub<Output = Self>
     + PartialOrd
 {
+    /// Convert boundary into frame number
     fn to_frame(self, _: &Metadata) -> anyhow::Result<Frame>;
+
+    /// Convert boundary into timestamp
     fn to_time(self, _: &Metadata) -> anyhow::Result<Time>;
 }
 
@@ -56,7 +48,9 @@ impl Display for BoundaryType {
     }
 }
 
-/// Conversion from string
+/// Conversion from &str. Since a variety of different strings could be used to
+/// indicate a timestamp or a frame number, the coding must take this into
+/// account
 impl FromStr for BoundaryType {
     type Err = anyhow::Error;
 
@@ -92,14 +86,21 @@ impl From<Frame> for usize {
     }
 }
 
-/// Conversion from f64
+/// Conversion from and to f64
 impl From<f64> for Frame {
+    // frame is expected to not being negative. To be on the safe side, the
+    // absolute value of frame is used
     fn from(frame: f64) -> Self {
-        Frame(frame as usize)
+        Frame(frame.abs() as usize)
+    }
+}
+impl From<Frame> for f64 {
+    fn from(frame: Frame) -> Self {
+        frame.0 as f64
     }
 }
 
-/// Conversion from string
+/// Conversion from &str
 impl FromStr for Frame {
     type Err = anyhow::Error;
 
@@ -141,10 +142,12 @@ impl Sub<usize> for Frame {
 }
 
 impl Boundary for Frame {
+    // Convert frame number into timestamp
     fn to_frame(self, _: &Metadata) -> anyhow::Result<Frame> {
         Ok(self)
     }
 
+    // Conversion into timestamp: Nothing to do
     fn to_time(self, metadata: &Metadata) -> anyhow::Result<Time> {
         metadata.frame_to_time(self)
     }
@@ -161,8 +164,10 @@ impl Display for Time {
 
 /// Conversion from and to f64 (f64 value is interpreted as time in seconds)
 impl From<f64> for Time {
+    // secs is expected to not being negative. To be on the safe side, the
+    // absolute value of secs is used
     fn from(secs: f64) -> Self {
-        Time((secs * 1000000_f64) as u64)
+        Time((secs.abs() * 1000000_f64) as u64)
     }
 }
 impl From<Time> for f64 {
@@ -171,10 +176,18 @@ impl From<Time> for f64 {
     }
 }
 
-/// Conversion from string
+lazy_static! {
+    // Regular expression representing a time string
+    static ref RE_TIME: Regex =
+        Regex::new(r#"^(?<hours>\d+):(?<mins>[0-5]\d)+:(?<secs>[0-5]\d)+(\.(?<subs>\d{0,6}))*$"#).unwrap();
+}
+
+/// Conversion from &str
 impl FromStr for Time {
     type Err = anyhow::Error;
 
+    // s must match "[HH:MM:SS.ssssss]" with HH = hours, MM = minutes,
+    // SS = seconds, ssssss = sub seconds
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !RE_TIME.is_match(s) {
             return Err(anyhow!("\"{}\" is not a valid time string", s));
@@ -183,16 +196,20 @@ impl FromStr for Time {
         // Since here it is clear that s matches the regexp, we can use unwrap()
         // in the following safely
 
+        // Extract hours, minutes and seconds
         let caps = RE_TIME.captures(s).unwrap();
-        let hours = caps.get(1).unwrap().as_str().parse::<f64>().unwrap();
-        let mins = caps.get(2).unwrap().as_str().parse::<f64>().unwrap();
-        let secs = caps.get(3).unwrap().as_str().parse::<f64>().unwrap();
+        let hours = caps.name("hours").unwrap().as_str().parse::<f64>().unwrap();
+        if !(0.0..=23.0).contains(&hours) {
+            return Err(anyhow!("Hours in {} are not valid", s));
+        }
+        let mins = caps.name("mins").unwrap().as_str().parse::<f64>().unwrap();
+        let secs = caps.name("secs").unwrap().as_str().parse::<f64>().unwrap();
 
         Ok(Self::from(
             hours * 3600.0
                 + mins * 60.0
                 + secs
-                + match caps.get(5) {
+                + match caps.name("subs") {
                     Some(subs_match) => {
                         let subs_str = subs_match.as_str();
                         let subs = subs_str.parse::<f64>().unwrap();
@@ -219,6 +236,7 @@ impl Sub for Time {
 }
 
 impl Boundary for Time {
+    // Convert timestamp into frame number
     fn to_frame(self, metadata: &Metadata) -> anyhow::Result<Frame> {
         if !metadata.has_frames() {
             Err(anyhow!(
@@ -232,6 +250,7 @@ impl Boundary for Time {
         }
     }
 
+    // Conversion into timestamp: Nothing to do
     fn to_time(self, _: &Metadata) -> anyhow::Result<Time> {
         Ok(self)
     }
@@ -254,6 +273,11 @@ where
     }
 }
 
+lazy_static! {
+    /// Regular expression for a string representing one interval
+    static ref RE_INTERVAL: Regex = Regex::new(r#"^\[(?<from>[^\[\],]+),(?<to>[^\[\],]+)\]$"#).unwrap();
+}
+
 /// Conversion from string
 impl<B> FromStr for Interval<B>
 where
@@ -261,29 +285,31 @@ where
 {
     type Err = anyhow::Error;
 
+    // s must have the form "[<FROM-STRING>,<TO-STRING>]", where FROM_STRING and
+    // TO_STRING must be according to the corresponding boundary type
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if RE_INTERVAL.is_match(s) {
-            Ok(Interval::<B> {
-                from: B::from_str(
-                    RE_INTERVAL
-                        .captures(s)
-                        .unwrap()
-                        .name("from")
-                        .unwrap()
-                        .as_str(),
-                )?,
-                to: B::from_str(
-                    RE_INTERVAL
-                        .captures(s)
-                        .unwrap()
-                        .name("to")
-                        .unwrap()
-                        .as_str(),
-                )?,
-            })
-        } else {
-            Err(anyhow!("\"{}\" is not a valid interval", s))
+            return Err(anyhow!("\"{}\" is not a valid interval", s));
         }
+
+        Ok(Interval::<B> {
+            from: B::from_str(
+                RE_INTERVAL
+                    .captures(s)
+                    .unwrap()
+                    .name("from")
+                    .unwrap()
+                    .as_str(),
+            )?,
+            to: B::from_str(
+                RE_INTERVAL
+                    .captures(s)
+                    .unwrap()
+                    .name("to")
+                    .unwrap()
+                    .as_str(),
+            )?,
+        })
     }
 }
 
@@ -291,16 +317,24 @@ impl<B> Interval<B>
 where
     B: Boundary,
 {
+    // Creates an interval with from an to as boundaries. If form == to - i.e.,
+    // an interval of length 0 would be created - None is returned. Otherwise,
+    // Some(interval) is returned
     pub fn from_from_to(from: B, to: B) -> Option<Self> {
         if from == to {
             None
-        } else {
+        } else if from < to {
             Some(Interval::<B> { from, to })
+        } else {
+            Some(Interval::<B> { from: to, to: from })
         }
     }
 
+    // Creates an interval with start as lower boundary and start + duration as
+    // upper boundary. In case duration is 0, None is returned, otherwise
+    // Some(interval)
     pub fn from_start_duration(start: B, duration: B) -> Option<Self> {
-        if start == start + duration {
+        if Into::<f64>::into(duration) == 0.0 {
             None
         } else {
             Some(Interval::<B> {
@@ -318,8 +352,8 @@ where
         self.to
     }
 
-    pub fn len(&self) -> B {
-        self.to - self.from
+    pub fn len(&self) -> f64 {
+        Into::<f64>::into(self.to - self.from)
     }
 
     pub fn to_frames(&self, metadata: &Metadata) -> anyhow::Result<Interval<Frame>> {
@@ -349,24 +383,32 @@ impl Interval<Frame> {
     }
 }
 
+lazy_static! {
+    /// Regular expression for a string of intervals
+    static ref RE_INTERVALS: Regex = Regex::new(r#"^(?<interval>\[[^\[\],]+,[^\[\],]+\])+$"#).unwrap();
+}
+
+/// Create a vector of intervals from a string representation of the form
+/// "[<FROM-STRING>,<TO-STRING>][<FROM-STRING>,<TO-STRING>]..[<FROM-STRING>,<TO-STRING>]"
 pub fn intervals_from_str<B>(s: &str) -> anyhow::Result<Vec<Interval<B>>>
 where
     B: Boundary,
 {
-    if RE_INTERVALS.is_match(s) {
-        let mut intervals = vec![];
-
-        // Split string in sub strings that contain a single interval string
-        // each and create an interval fro it
-        for s in s.split_inclusive(']').collect::<Vec<_>>() {
-            let interval = Interval::<B>::from_str(s)?;
-            if interval.len() > B::from(0_f64) {
-                intervals.push(interval)
-            }
-        }
-
-        Ok(intervals)
-    } else {
-        Err(anyhow!("\"{}\" is not a valid list of intervals", s))
+    if !RE_INTERVALS.is_match(s) {
+        return Err(anyhow!("\"{}\" is not a valid list of intervals", s));
     }
+
+    let mut intervals = vec![];
+
+    // Split string into sub strings, where each sub string contains a single
+    // interval string and create an interval from it
+    for s in s.split_inclusive(']').collect::<Vec<_>>() {
+        let interval = Interval::<B>::from_str(s)?;
+        // Only accept intervals of length greater than zero
+        if interval.len() > 0.0 {
+            intervals.push(interval)
+        }
+    }
+
+    Ok(intervals)
 }

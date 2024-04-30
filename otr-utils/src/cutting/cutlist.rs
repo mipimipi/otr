@@ -170,7 +170,7 @@ pub fn headers_from_provider(
         raw_headers.headers.len()
     );
 
-    for raw_header in raw_headers.headers {
+    for raw_header in &raw_headers.headers {
         // Do not accept cut lists with errors
         let num_errs = raw_header.errors.parse::<i32>();
         if num_errs.is_err() || num_errs.unwrap() > 0 {
@@ -214,22 +214,21 @@ pub fn headers_from_provider(
     Ok(headers)
 }
 
-// Create a cut interval an ini structure
-// TODO: comment
+// Create a cut interval from an INI structure
 fn interval_from_ini<B>(cutlist_ini: &Ini, cut_no: usize) -> anyhow::Result<Option<Interval<B>>>
 where
     B: Boundary,
 {
     let cut_ini = cutlist_ini
         .section(Some(format!("{}{}", CUTLIST_CUT_SECTION, cut_no)))
-        .with_context(|| format!("Could not find section for cut no {}", cut_no))?;
+        .context(format!("Could not find section for cut no {}", cut_no))?;
 
     let (start, duration) = (
         cut_ini
             .get(item_attr_start(BoundaryType::from_str(
                 std::any::type_name::<B>(),
             )?))
-            .with_context(|| {
+            .context({
                 format!(
                     "Could not find attribute \"{}\" for cut no {}",
                     item_attr_start(BoundaryType::from_str(std::any::type_name::<B>()).unwrap()),
@@ -241,7 +240,7 @@ where
             .get(item_attr_duration(BoundaryType::from_str(
                 std::any::type_name::<B>(),
             )?))
-            .with_context(|| {
+            .context({
                 format!(
                     "Could not find attribute \"{}\" for cut no {}",
                     item_attr_duration(BoundaryType::from_str(std::any::type_name::<B>()).unwrap()),
@@ -255,13 +254,13 @@ where
         return Ok(None);
     }
 
+    // Though start.unwrap() and duration.unwrap() are &str, a conversion to f64
+    // is done since the strings are no valid time strings (in case the interval
+    // is provided as time interval)
     Ok(Interval::<B>::from_start_duration(
-        B::from_str(start.unwrap())?,
-        B::from_str(duration.unwrap())?,
+        B::from(start.unwrap().parse::<f64>()?),
+        B::from(duration.unwrap().parse::<f64>()?),
     ))
-
-    // start_duration_to_from_to(start.unwrap(), duration.unwrap())?
-    //     .map(|(from, to)| Interval::<B>::new(B::from(from), B::from(to))),
 }
 
 /// Attribute name for start of a cut interval depending on the boundary type -
@@ -297,6 +296,7 @@ pub struct Cutlist {
 impl TryFrom<&Ini> for Cutlist {
     type Error = anyhow::Error;
 
+    /// Create a cut list from an INI structure
     fn try_from(cutlist_ini: &Ini) -> Result<Self, Self::Error> {
         let mut cutlist = Cutlist {
             // Get cut list id. This is done in a separate step early in the
@@ -374,6 +374,7 @@ impl TryFrom<&Ini> for Cutlist {
 impl TryFrom<&Path> for Cutlist {
     type Error = anyhow::Error;
 
+    /// Create a cut list from a file
     fn try_from(cutlist_file: &Path) -> Result<Self, Self::Error> {
         Cutlist::try_from(
             &Ini::load_from_str(&fs::read_to_string(cutlist_file).with_context(|| {
@@ -426,8 +427,15 @@ impl Cutlist {
     /// Creates a cut list from an intervals string, i.e. "frames:[...]" or
     /// "times:[...]"
     pub fn try_from_intervals(intervals: &str) -> anyhow::Result<Cutlist> {
+        let err_msg = format!(
+            "Could not create cut list from intervals string \"{}\"",
+            intervals
+        );
+
         if !RE_INTERVALS.is_match(intervals) {
-            return Err(anyhow!("\"{}\" is not a valid intervals string", intervals));
+            return Err(
+                anyhow!("\"{}\" is not a valid intervals string", intervals).context(err_msg)
+            );
         }
 
         let mut cutlist = Cutlist::default();
@@ -440,7 +448,8 @@ impl Cutlist {
                 .name("type")
                 .unwrap()
                 .as_str(),
-        )?;
+        )
+        .context(err_msg.clone())?;
         let intervals = RE_INTERVALS
             .captures(intervals)
             .unwrap()
@@ -448,16 +457,19 @@ impl Cutlist {
             .unwrap()
             .as_str();
 
-        // Parse the actual intervals
+        // Create interval list from string
         if btype == BoundaryType::Frame {
-            cutlist.frame_intervals = Some(interval::intervals_from_str::<Frame>(intervals)?)
+            cutlist.frame_intervals =
+                Some(interval::intervals_from_str::<Frame>(intervals).context(err_msg.clone())?)
         } else {
-            cutlist.time_intervals = Some(interval::intervals_from_str::<Time>(intervals)?)
+            cutlist.time_intervals =
+                Some(interval::intervals_from_str::<Time>(intervals).context(err_msg.clone())?)
         }
 
         cutlist
             .validate()
-            .context(format!("{} does not represent a valid cut list", intervals))?;
+            .context(format!("{} does not represent a valid cut list", intervals))
+            .context(err_msg)?;
 
         Ok(cutlist)
     }
@@ -472,7 +484,7 @@ impl Cutlist {
         self.time_intervals.is_some()
     }
 
-    /// Provide iterator for frame intervals
+    /// Provide an iterator for frame intervals
     pub fn frame_intervals(&self) -> anyhow::Result<std::slice::Iter<'_, Interval<Frame>>> {
         match &self.frame_intervals {
             Some(frame_intervals) => Ok(frame_intervals.iter()),
@@ -480,7 +492,7 @@ impl Cutlist {
         }
     }
 
-    /// Provide iterator for frame intervals
+    /// Provide an iterator for frame intervals
     pub fn time_intervals(&self) -> anyhow::Result<std::slice::Iter<'_, Interval<Time>>> {
         match &self.time_intervals {
             Some(time_intervals) => Ok(time_intervals.iter()),
@@ -563,29 +575,42 @@ impl Cutlist {
         }
     }
 
-    // Retrieves cut number cut_no from ini structure, creates a cut list item
-    // from it and appends it to the cut list
+    /// Retrieves cut interval number cut_no from ini structure, creates a cut
+    /// list item from it and appends it to the cut list
     fn extend_from_ini_cut(&mut self, cutlist_ini: &Ini, cut_no: usize) -> anyhow::Result<()> {
-        // TODO: extract logic below in separate generic function<B>?
+        let err_msg = format!(
+            "Could not extend cut list by cut interval number {}",
+            cut_no
+        );
 
         // Try to retrieve and add frame interval
-        if let Some(interval) = interval_from_ini::<Frame>(cutlist_ini, cut_no)? {
+        if let Some(interval) =
+            interval_from_ini::<Frame>(cutlist_ini, cut_no).context(err_msg.clone())?
+        {
             if cut_no == 0 {
                 self.frame_intervals = Some(vec![interval]);
             } else if self.has_frame_intervals() {
                 self.frame_intervals.as_mut().unwrap().push(interval)
             } else {
-                return Err(anyhow!("TODO"));
+                return Err(anyhow!(
+                    "Cannot add frame interval to cut list since it had no frame intervals so far"
+                )
+                .context(err_msg));
             }
         }
         // Try to retrieve and add time interval
-        if let Some(interval) = interval_from_ini::<Time>(cutlist_ini, cut_no)? {
+        if let Some(interval) =
+            interval_from_ini::<Time>(cutlist_ini, cut_no).context(err_msg.clone())?
+        {
             if cut_no == 0 {
                 self.time_intervals = Some(vec![interval]);
             } else if self.has_time_intervals() {
                 self.time_intervals.as_mut().unwrap().push(interval)
             } else {
-                return Err(anyhow!("TODO"));
+                return Err(anyhow!(
+                    "Cannot add time interval to cut list since it had no time intervals so far"
+                )
+                .context(err_msg));
             }
         }
 
@@ -594,7 +619,7 @@ impl Cutlist {
 
     /// Length of cut list (i.e., the number of cuts). If the cut list has both,
     /// frame and time intervals, the number of cuts must be equal, since
-    /// otherwise the cut list was invalid
+    /// otherwise the cut list is invalid
     fn len(&self) -> usize {
         if self.has_frame_intervals() {
             return self.frame_intervals.as_ref().unwrap().len();
@@ -617,7 +642,7 @@ impl Cutlist {
         // Section "[General]"
         cutlist_ini
             .with_section(Some(CUTLIST_GENERAL_SECTION))
-            .set(CUTLIST_APPLICATION, env!("CARGO_PKG_NAME"))
+            .set(CUTLIST_APPLICATION, "otr")
             .set(CUTLIST_VERSION, env!("CARGO_PKG_VERSION"))
             .set(CUTLIST_INTENDED_CUT_APP, "ffmpeg")
             .set(CUTLIST_NUM_OF_CUTS, format!("{}", self.len()))
@@ -697,7 +722,7 @@ impl Cutlist {
             for interval in intervals {
                 if interval.from() > interval.to() {
                     return Err(anyhow!(
-                        "Cut list intervals are invalid: Start ({}) is after end ({})",
+                        "Cut list intervals are invalid: From ({}) is after to ({})",
                         interval.from(),
                         interval.to()
                     ));
@@ -728,10 +753,12 @@ impl Cutlist {
         }
 
         if self.has_frame_intervals() {
-            validate_intervals(self.frame_intervals.as_ref().unwrap())?;
+            validate_intervals(self.frame_intervals.as_ref().unwrap())
+                .context("Frame intervals of cut list are invalid")?;
         }
-        if self.has_frame_intervals() {
-            validate_intervals(self.time_intervals.as_ref().unwrap())?;
+        if self.has_time_intervals() {
+            validate_intervals(self.time_intervals.as_ref().unwrap())
+                .context("Time intervals of cut list are invalid")?;
         }
 
         Ok(())
