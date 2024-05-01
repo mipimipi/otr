@@ -3,9 +3,7 @@
 
 # otr
 
-**PLEASE NOTE: Structure of configuration file changed in an incompatible way with v0.8.0! - see details [here](#configuration)**
-
-otr is a command line tool that decodes and cuts video files from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux, macOS and Windows.
+otr is a command line tool that decodes and cuts video files from [Online TV Recorder](https://www.onlinetvrecorder.com/) (OTR). It is running on Linux, and macOS.
 
 Supported architectures are:
 
@@ -18,7 +16,6 @@ Supported architectures are:
 - [Installation](#installation)
     - [Linux](#linux)
     - [macOS](#macos)
-    - [Windows](#windows)
 - [Configuration](#configuration)
 - [Running otr](#running-otr) 
 
@@ -32,7 +29,9 @@ Decoding includes verifying the checksums of the OTRKEY file and the decoded fil
 
 ### Cutting
 
-otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.html) which is part of the [MKVToolNix](https://mkvtoolnix.download/) program suite. With respect to cut list determination and selection, there are two different options:
+otr cuts videos by using [FFmpeg](https://ffmpeg.org/) together with [FFMS2](https://github.com/FFMS/ffms2). Cutting is done **accurate to frames**. I.e., even if a boundary of a cut interval is not at a key frame,cutting is done exactly at that boundary. To achieve this, parts of the video might have to be re-encoded.
+
+With respect to cut list determination and selection, there are two different options:
 
 1. otr downloads and selects cut lists from the cut list provider [cutlist.at](http://cutlist.at) automatically
 
@@ -44,7 +43,7 @@ otr cuts videos by using [MKVmerge](https://mkvtoolnix.download/doc/mkvmerge.htm
 
 ### Fast, concurrent processing
 
-otr tries to process files as fast as possible. Video files are decoded sequentially (i.e., one by one), but each files is decoded using concurrent threads to leverage the cpu capabilities to full extend. Cutting is done for many files simultaneously via concurrent threads as well.
+otr tries to process files as fast as possible. Video files are decoded sequentially (i.e., one by one), but each files is decoded using concurrent threads to leverage the cpu capabilities to full extend. For cutting, FFmpeg's multithreading capabilities are used. 
 
 ### Automated handling of otrkey files
 
@@ -60,7 +59,7 @@ Though being a command line application, the usage of otr is quite simple. If, f
 
 #### Manual installation
 
-This works for both, Linux and macOS. Make sure to install MKVToolNix, since - as already mentioned - otr requires MKVMerge for cutting videos.
+This works for both, Linux and macOS. Make sure to install FFmpeg and FFMS2, since otr requires both for cutting videos.
 
 To download otr, clone this repository via
 
@@ -92,27 +91,7 @@ Since otr is then the only application that can process files of the new mime ty
 
 ### macOS
 
-See [Manual installation](#manual-installation). Files that were cut with otr have the [Matroska container format](https://en.wikipedia.org/wiki/Matroska) (.mkv). To be able to play such videos with [Quicktime](https://support.apple.com/guide/quicktime-player/welcome/mac) a plugin is required. Otherwise, a different player must be used - [VLC](https://www.videolan.org/vlc) for example.
-
-### Windows
-
-The installation on Windows is a little bit cumbersome. Since there is no Windows installer for otr, it works purely manual:
-
-1. Make sure that [MKVToolNix](https://mkvtoolnix.download/) is installed and that the path of the binaries (`mkvmerge`, etc.) is contained in the Windows path environment variable
-1. In a terminal window, clone the otr repository ([git](https://git-scm.com/download/win) must be installed as prerequisite, of course) and switch to the new directory:
-
-		git clone https://gitlab.com/mipimipi/otr.git
-		cd otr
-		
-1. Build the otr binary ([rust](https://forge.rust-lang.org/infra/other-installation-methods.html) must be installed as prerequisite, of course):
-
-		cargo build --release
-		   
-1. If the build step ran through without errors, the otr binary (`otr.exe`) is stored in the sub directory `target\release`. Copy the binary wherever you want. You might want to add its new path to the Windows path environment variable as well.
-
-1. Maintain the otr configuration file (see [below](#configuration)).
-
-1. Have fun with otr.
+See [Manual installation](#manual-installation). If [Quicktime](https://support.apple.com/guide/quicktime-player/welcome/mac) is your preferred player, a plugin might be required depending on the video file format. Otherwise, a different player must be used - [VLC](https://www.videolan.org/vlc) for example.
 
 ## Configuration
 
@@ -120,7 +99,6 @@ otr can be configured by creating a configuration file in [JSON](https://en.wiki
 
 - `<XDG-CONFIG-HOME-DIR>` on Linux, whereas in most cases `<XDG-CONFIG-HOME-DIR>` equals to `~/.config`
 - `~/Library/Application Support` on macOS
-- `C:\Users\<YOUR_USER_NAME\AppData\Roaming`
 
 The configuration file has this structure:
 
@@ -142,7 +120,7 @@ All parameters are optional and/or have default values, or can be overwritten by
 
 | Parameter | Description | Mandatory | Default | CLI parameter |
 |---|---|---|---|---|
-| `working_directory` | [Working directory](#working-directory) of otr | Optional | `~/Videos/OTR` on Linux, `~/Movies/OTR`on macOS, `C:\Users\<YOUR_USER_NAME>\Videos\OTR` on Windows | No |
+| `working_directory` | [Working directory](#working-directory) of otr | Optional | `~/Videos/OTR` on Linux, `~/Movies/OTR`on macOS | No |
 | `user`, `password`| Access data for Online TV Recorder | Mandatory for decoding videos | There is no default | Yes (`--user/-u` and `--password/-p`)|
 | `min_cutlist_rating` | Minimum rating that a cut list from cutlist.at must have to be accepted by otr for cutting videos | Optional | If the parameter is not given, all cut lists are accepted |  Yes (`--min-rating`) |
 | `submit_cutlists` | Whether self-created cut lists are submitted to cutlist.at or not. To upload cut lists, an access token for cutlist.at is required | Optional | If the parameter is not given, self-created cut lists will not be submitted |  No |
@@ -176,8 +154,6 @@ otr requires a certain schema for the name of video files (that is the schema OT
 
     <name-of-video>_YY.MM.DD_hh-mm_<TV-station>_<a-number>_TVOON_DE.mpg(.|.HQ|.HD).<format>(.otrkey)?
 
-Since MKVMerge is used to cut videos, the resulting files have the [Matroska container format](https://en.wikipedia.org/wiki/Matroska) (.mkv). 
-
 ### `otr decode`
 
  `otr decode` allows decoding a single video. See the command line help for details.
@@ -190,7 +166,7 @@ Since MKVMerge is used to cut videos, the resulting files have the [Matroska con
 
 If self-created cut lists are used (i.e., dedicated cut intervals with `otr cut --cutlist ...`), otr can generate corresponding cut list files and upload them to [cutlist.at](http://cutlist.at) automatically to make the cut lists publicly available. This requires a registration at cutlist.at (i.e., an access token - $$FRED). Furthermore, the [otr configuration](#configuration) must be set up accordingly. If required, the attributes of such cut lists can be adjusted on the cutlist.at web site, after the  upload.
 
-The generated cut list files are stored in the sub folder `OTR` of the user-specific cache directory of your OS (that is typically `<XDG-CACHE-HOME-DIR>` - i.e., in most cases `~/.cache` -  on Linux, `~/Library/Caches` on macOS, `C:\Users\<YOUR_USER_NAME>\AppData\Local` on Windows). After they were uploaded, these files are no longer required and can be deleted.
+The generated cut list files are stored in the sub folder `OTR` of the user-specific cache directory of your OS (that is typically `<XDG-CACHE-HOME-DIR>` - i.e., in most cases `~/.cache` -  on Linux, `~/Library/Caches` on macOS). After they were uploaded, these files are no longer required and can be deleted.
 
 ## Verbosity
  
