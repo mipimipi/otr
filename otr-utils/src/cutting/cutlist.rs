@@ -230,27 +230,24 @@ where
         .context(format!("Could not find section for cut no {}", cut_no))
         .context(err_msg.clone())?;
 
+    let btype = BoundaryType::from_str(std::any::type_name::<B>()).context(err_msg.clone())?;
     let (start, duration) = (
         cut_ini
-            .get(item_attr_start(BoundaryType::from_str(
-                std::any::type_name::<B>(),
-            )?))
+            .get(item_attr_start(&btype))
             .context({
                 format!(
                     "Could not find attribute \"{}\" for cut no {}",
-                    item_attr_start(BoundaryType::from_str(std::any::type_name::<B>()).unwrap()),
+                    item_attr_start(&btype),
                     cut_no
                 )
             })
             .ok(),
         cut_ini
-            .get(item_attr_duration(BoundaryType::from_str(
-                std::any::type_name::<B>(),
-            )?))
+            .get(item_attr_duration(&btype))
             .context({
                 format!(
                     "Could not find attribute \"{}\" for cut no {}",
-                    item_attr_duration(BoundaryType::from_str(std::any::type_name::<B>()).unwrap()),
+                    item_attr_duration(&btype),
                     cut_no
                 )
             })
@@ -279,8 +276,8 @@ where
 
 /// Attribute name for start of a cut interval depending on the boundary type -
 /// i.e., frame or time
-fn item_attr_start(btype: BoundaryType) -> String {
-    if btype == BoundaryType::Frame {
+fn item_attr_start(btype: &BoundaryType) -> String {
+    if btype == &BoundaryType::Frame {
         CUTLIST_ITEM_FRAMES_START.to_string()
     } else {
         CUTLIST_ITEM_TIME_START.to_string()
@@ -289,8 +286,8 @@ fn item_attr_start(btype: BoundaryType) -> String {
 
 /// Attribute name for the duration of a cut interval depending on the boundary
 /// type - i.e., frame or time
-fn item_attr_duration(btype: BoundaryType) -> String {
-    if btype == BoundaryType::Frame {
+fn item_attr_duration(btype: &BoundaryType) -> String {
+    if btype == &BoundaryType::Frame {
         CUTLIST_ITEM_FRAMES_DURATION.to_string()
     } else {
         CUTLIST_ITEM_TIME_DURATION.to_string()
@@ -518,7 +515,7 @@ impl Cutlist {
     /// response
     pub fn submit<P, Q>(
         &mut self,
-        video_path: P,
+        video: P,
         tmp_dir: Q,
         access_token: &str,
         rating: Rating,
@@ -527,11 +524,11 @@ impl Cutlist {
         P: AsRef<Path>,
         Q: AsRef<Path>,
     {
-        let file_name = video_path.as_ref().file_name().unwrap().to_str().unwrap();
+        let file_name = video.as_ref().file_name().unwrap().to_str().unwrap();
         let cutlist_file = tmp_dir.as_ref().join(format!("{}.cutlist", file_name));
 
         // Generate INI structure and write it to a file
-        self.to_ini(video_path.as_ref(), rating)?
+        self.to_ini(video.as_ref(), rating)?
             .write_to_file(cutlist_file.as_path())
             .context(format!(
                 "Could not write cut list to file \"{}\"",
@@ -669,43 +666,47 @@ impl Cutlist {
                 ),
             );
 
+        // Add a cut interval to INI structure ini
+        fn add_cut_interval<B>(
+            ini: &mut Ini,
+            cut_no: usize,
+            interval: &Interval<B>,
+        ) -> anyhow::Result<()>
+        where
+            B: Boundary,
+        {
+            let btype = BoundaryType::from_str(std::any::type_name::<B>()).context(format!(
+                "Could not add cut interval for {} to INI structure",
+                interval
+            ))?;
+
+            ini.with_section(Some(format!("{}{}", CUTLIST_CUT_SECTION, cut_no)))
+                .set(item_attr_start(&btype), format!("{}", interval.from()))
+                .set(
+                    item_attr_duration(&btype),
+                    format!("{}", interval.to() - interval.from()),
+                );
+
+            Ok(())
+        }
+
         // Sections "[CutN]" for N=0,...,<number-of-cuts>-1
         for i in 0..self.len() {
-            // TODO: extract logic below in separate generic function?
-
-            // Write frame interval
+            // Write frame interval to INI structure
             if self.has_frame_intervals() {
-                cutlist_ini
-                    .with_section(Some(format!("{}{}", CUTLIST_CUT_SECTION, i)))
-                    .set(
-                        item_attr_start(BoundaryType::Frame),
-                        format!("{}", self.frame_intervals.as_ref().unwrap()[i].from()),
-                    )
-                    .set(
-                        item_attr_duration(BoundaryType::Frame),
-                        format!(
-                            "{}",
-                            self.frame_intervals.as_ref().unwrap()[i].to()
-                                - self.frame_intervals.as_ref().unwrap()[i].from()
-                        ),
-                    );
+                add_cut_interval::<Frame>(
+                    &mut cutlist_ini,
+                    i,
+                    &self.frame_intervals.as_ref().unwrap()[i],
+                )?;
             }
-            // Write time interval
+            // Write time interval to INI structure
             if self.has_time_intervals() {
-                cutlist_ini
-                    .with_section(Some(format!("{}{}", CUTLIST_CUT_SECTION, i)))
-                    .set(
-                        item_attr_start(BoundaryType::Time),
-                        format!("{}", self.time_intervals.as_ref().unwrap()[i].from()),
-                    )
-                    .set(
-                        item_attr_duration(BoundaryType::Time),
-                        format!(
-                            "{}",
-                            self.time_intervals.as_ref().unwrap()[i].to()
-                                - self.time_intervals.as_ref().unwrap()[i].from()
-                        ),
-                    );
+                add_cut_interval::<Time>(
+                    &mut cutlist_ini,
+                    i,
+                    &self.time_intervals.as_ref().unwrap()[i],
+                )?;
             }
         }
 

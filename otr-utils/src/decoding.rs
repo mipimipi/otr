@@ -52,9 +52,9 @@ type OTRParams = HashMap<String, String>;
 /// Part of a video file for concurrent decoding
 type Chunk = Vec<u8>;
 
-/// Decode a encoded video file. in_path is the path of the decoded video file.
-/// out_path is the path of the cut video file.
-pub fn decode<P, Q>(in_path: P, out_path: Q, user: &str, password: &str) -> anyhow::Result<()>
+/// Decode a encoded video file. in_video is the path of the decoded video file.
+/// out_video is the path of the cut video file.
+pub fn decode<P, Q>(in_video: P, out_video: Q, user: &str, password: &str) -> anyhow::Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path> + Debug + Copy,
@@ -69,7 +69,7 @@ where
     }
 
     // Retrieve parameters from header of encoded video file
-    let mut in_file = File::open(&in_path)?;
+    let mut in_file = File::open(&in_video)?;
     let header_params =
         header_params(&mut in_file).with_context(|| "Could not extract video header from")?;
 
@@ -95,21 +95,21 @@ where
     // Decode encoded video file in concurrent threads using the decoding key
     if let Err(err) = decode_in_parallel(
         &mut in_file,
-        out_path,
+        out_video,
         &header_params,
         decoding_params.get(PARAM_DECODING_KEY).unwrap(),
     ) {
-        remove_file(out_path).unwrap_or_else(|_| {
+        remove_file(out_video).unwrap_or_else(|_| {
             panic!(
                 "Could not delete file \"{}\" after error when decoding video",
-                out_path.as_ref().display()
+                out_video.as_ref().display()
             )
         });
         return Err(err);
     }
 
     // Remove encoded video file
-    remove_file(&in_path).with_context(|| "Could not delete video after successful decoding")?;
+    remove_file(&in_video).with_context(|| "Could not delete video after successful decoding")?;
 
     Ok(())
 }
@@ -172,10 +172,10 @@ fn decode_chunk(key: &str, mut chunk: Chunk) -> Chunk {
 }
 
 /// Decode a video file (in_file) in concurrent threads using key as decoding
-/// key and write the result to out_path
+/// key and write the result to out_video
 fn decode_in_parallel<P>(
     in_file: &mut File,
-    out_path: P,
+    out_video: P,
     header_params: &OTRParams,
     key: &str,
 ) -> anyhow::Result<()>
@@ -183,10 +183,10 @@ where
     P: AsRef<Path> + Debug,
 {
     // Output file
-    let mut out_file = File::create(&out_path).with_context(|| {
+    let mut out_file = File::create(&out_video).with_context(|| {
         format!(
             "Could not create result file \"{}\"",
-            out_path.as_ref().display()
+            out_video.as_ref().display()
         )
     })?;
 
@@ -242,14 +242,14 @@ where
                 out_file.write_all(&chunk).with_context(|| {
                     format!(
                         "Could not write to decoded video file \"{}\"",
-                        out_path.as_ref().display(),
+                        out_video.as_ref().display(),
                     )
                 })?;
             }
             Err(_) => {
                 return Err(anyhow!(
                     "Could not create decoded video file \"{}\"",
-                    out_path.as_ref().display()
+                    out_video.as_ref().display()
                 ));
             }
         }

@@ -64,7 +64,7 @@ pub struct Metadata {
 
 impl Metadata {
     /// Create a new metadata object for a video
-    pub fn new<P>(path: P) -> anyhow::Result<Self>
+    pub fn new<P>(video: P) -> anyhow::Result<Self>
     where
         P: AsRef<Path>,
     {
@@ -73,11 +73,11 @@ impl Metadata {
         // Create FFMS2 index for video
         // FFMS2 must be initialized before it can be used
         init_ffms2();
-        let ffms2_indexer = ffms2::index::Indexer::new(path.as_ref());
+        let ffms2_indexer = ffms2::index::Indexer::new(video.as_ref());
         if let Err(err) = ffms2_indexer {
             return Err(anyhow!("{:?}", err).context(format!(
                 "Could not create FFMS2 indexer for video {}",
-                path.as_ref().display()
+                video.as_ref().display()
             )));
         }
         let ffms2_index = ffms2_indexer
@@ -86,7 +86,7 @@ impl Metadata {
         if let Err(err) = ffms2_index {
             return Err(anyhow!("{:?}", err).context(format!(
                 "Could not create FFMS2 index for video {}",
-                path.as_ref().display()
+                video.as_ref().display()
             )));
         }
         let ffms2_index = ffms2_index.unwrap();
@@ -99,7 +99,7 @@ impl Metadata {
         let mut main_stream: Option<ffms2::track::Track> = None;
 
         // Retrieve stream metadata via ffprobe
-        match ffprobe::ffprobe(&path) {
+        match ffprobe::ffprobe(&video) {
             Ok(ffprobe_info) => {
                 let mut first_audio_index: Option<usize> = None;
                 let mut first_video_index: Option<usize> = None;
