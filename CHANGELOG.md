@@ -1,5 +1,16 @@
 # Changelog
 
+## [Release 0.10.0](https://gitlab.com/mipimipi/otr/tags/v0.10.0) (2024-05-01)
+
+### Changed
+
+- Cutting is done accurate to frames (i.e., even if a boundary of a cut interval is not at a key frame, the videos is cut exactly at that boundary). FFmpeg replaces MKVmerge as toll used for cutting
+- Syntax of cut list interval for option `otr cut --cutlist` slightly changed
+
+### Removed
+
+- Description about how to install otr on Windows. This was quite cumbersome and thus most likely nobody did ever do this
+
 ## [Release 0.9.0](https://gitlab.com/mipimipi/otr/tags/v0.9.0) (2024-02-09)
 
 ### Added
