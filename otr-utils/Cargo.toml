@@ -1,6 +1,6 @@
 [package]
 name = "otr-utils"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["Michael Picht <mipi@fsfe.org>"]
 license = "GPL-3.0-or-later"
 description = "utilities for decoding and cutting video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
