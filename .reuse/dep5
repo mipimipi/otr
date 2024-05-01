@@ -4,7 +4,7 @@ Upstream-Contact: Michael Picht <mipi@fsfe.org>
 Source: gitlab.com/mipimipi/otr
 
 Files: Cargo.lock
-Copyright: 2022-2023 Michael Picht <mipi@fsfe.org>
+Copyright: 2022-2024 Michael Picht <mipi@fsfe.org>
 License: CC-BY-NC-SA-4.0
 
 Files: .gitignore
@@ -15,6 +15,8 @@ Files: .gitignore
        CONTRIBUTING.md
        CHANGELOG.md
        resources/*
-       src/*
-Copyright: 2022-2023 Michael Picht <mipi@fsfe.org>
+       common/*
+       otr/*
+       otr-utils/*
+Copyright: 2022-2024 Michael Picht <mipi@fsfe.org>
 License: GPL-3.0-or-later
