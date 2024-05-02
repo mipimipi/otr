@@ -173,8 +173,8 @@ enum Commands {
         long_about = indoc! {"
             Cut a video if possible. That is the case if ...
               (a) at least one cut list exists on cutlist.at, which is either selected
-                  automatically, or an ID of a cut list is submitted, or ...
-              (b) or a cut list is given explicitly as sequence of intervals or as file.
+                  automatically, or an ID of a cut list is submitted, or
+              (b) a cut list is given explicitly as sequence of intervals or as file.
  
             If the video was cut successfully, the corresponding files (i.e., the uncut
             and cut video files) are moved to the corresponding work (sub)directories"}
@@ -188,7 +188,7 @@ enum Commands {
             Cut list as sequence of intervals, either based on time or frame numbers. The
             INTERVALS_STRING starts either with the key word \"frames\" or \"times\"
             respectively. After a colon, the list of intervals must be specified as
-            \"[<START>,<END>]...\". Times must be given as [H...]H:MM:SS.ssssss, where
+            \"[<START>,<END>]...\". Times must be given as [H]H:MM:SS.ssssss, where
             \"ssssss\" denotes the sub seconds part as nano seconds. This part is
             optional.
             Examples:
