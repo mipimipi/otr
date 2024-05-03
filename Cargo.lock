@@ -565,7 +565,7 @@ dependencies = [
 [[package]]
 name = "ffms2"
 version = "0.3.0"
-source = "git+https://github.com/mipimipi/ffms2-rs#0d2fd5b3d6cadd458a134ab5f807795a2055a20e"
+source = "git+https://github.com/rust-av/ffms2-rs#87238d7283c3b1d4b131ad9c418ef2d15d024c72"
 dependencies = [
  "cfg-if",
  "ffmpeg-the-third",
@@ -576,7 +576,7 @@ dependencies = [
 [[package]]
 name = "ffms2-sys"
 version = "0.3.0"
-source = "git+https://github.com/mipimipi/ffms2-rs#0d2fd5b3d6cadd458a134ab5f807795a2055a20e"
+source = "git+https://github.com/rust-av/ffms2-rs#87238d7283c3b1d4b131ad9c418ef2d15d024c72"
 dependencies = [
  "bindgen 0.66.1",
  "metadeps",
@@ -1210,7 +1210,7 @@ dependencies = [
 
 [[package]]
 name = "otr"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1226,7 +1226,7 @@ dependencies = [
 
 [[package]]
 name = "otr-utils"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "base64",
