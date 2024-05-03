@@ -499,7 +499,7 @@ fn params_from_str(params_str: &str, must_have: Vec<&str>) -> anyhow::Result<OTR
 
     // Check if all parameters are there
     for key in must_have {
-        if params.get(key).is_none() {
+        if !params.contains_key(key) {
             return Err(anyhow!("Parameter \"{}\" could not be extracted", key));
         }
     }
