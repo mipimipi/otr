@@ -1,5 +1,11 @@
 # Changelog
 
+## [Release 0.11.0](https://gitlab.com/mipimipi/otr/tags/v0.11.0) (2024-05-05)
+
+### Changed
+
+- Use binary ffmsindex to retrieve indexes that are needed for frame-accurate cutting. Before FFMS2 bindings from ffms2-rs were used which caused problems in some Linux distros
+
 ## [Release 0.10.0](https://gitlab.com/mipimipi/otr/tags/v0.10.0) (2024-05-01)
 
 ### Changed

@@ -59,7 +59,7 @@ Though being a command line application, the usage of otr is quite simple. If, f
 
 #### Manual installation
 
-This works for both, Linux and macOS. Make sure to install FFmpeg and FFMS2, since otr requires both for cutting videos, as well as [Clang](https://clang.llvm.org/).
+This works for both, Linux and macOS. Make sure to install FFmpeg and FFMS2 (the binary `ffmsindex` is required), since otr requires both for cutting videos.
 
 To download otr, clone this repository via
 
