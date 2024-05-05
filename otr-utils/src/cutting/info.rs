@@ -1,9 +1,22 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
+use duct::cmd;
 use log::*;
+use scopeguard::defer;
 use std::path::Path;
-use std::{fmt, str::FromStr, sync::Once};
+use std::{
+    fmt,
+    fs::{self, File},
+    io::{BufRead, BufReader},
+    process::Output,
+    str::{from_utf8, FromStr},
+};
 
 use super::interval::{Frame, Time};
+
+/// Extensions of FFMS2 index files
+const FFMS2_INDEX_EXT: &str = "ffindex";
+const FFMS2_TIMES_INDEX_EXT: &str = "ffindex_track00.tc.txt";
+const FFMS2_KEY_FRAMES_INDEX_EXT: &str = "ffindex_track00.kf.txt";
 
 /// Type of a stream
 #[derive(Clone, Default, PartialEq)]
@@ -70,35 +83,8 @@ impl Metadata {
     {
         trace!("Retrieving metadata ...");
 
-        // Create FFMS2 index for video
-        // FFMS2 must be initialized before it can be used
-        init_ffms2();
-        let ffms2_indexer = ffms2::index::Indexer::new(video.as_ref());
-        if let Err(err) = ffms2_indexer {
-            return Err(anyhow!("{:?}", err).context(format!(
-                "Could not create FFMS2 indexer for video {}",
-                video.as_ref().display()
-            )));
-        }
-        let ffms2_index = ffms2_indexer
-            .unwrap()
-            .DoIndexing2(ffms2::IndexErrorHandling::IEH_ABORT);
-        if let Err(err) = ffms2_index {
-            return Err(anyhow!("{:?}", err).context(format!(
-                "Could not create FFMS2 index for video {}",
-                video.as_ref().display()
-            )));
-        }
-        let ffms2_index = ffms2_index.unwrap();
-        trace!("FFMS2 index created");
-
-        let mut streams: Vec<Stream> = vec![];
-        let mut times: Vec<Time> = vec![];
-        let mut key_frames: Vec<Frame> = vec![];
-
-        let mut main_stream: Option<ffms2::track::Track> = None;
-
         // Retrieve stream metadata via ffprobe
+        let mut streams: Vec<Stream> = vec![];
         match ffprobe::ffprobe(&video) {
             Ok(ffprobe_info) => {
                 let mut first_audio_index: Option<usize> = None;
@@ -145,25 +131,11 @@ impl Metadata {
                     }
 
                     streams.push(stream);
+                }
 
-                    // Set main stream. The "main stream" is the stream that is
-                    // used for mappings between timestamps and frame numbers.
-                    // If a file has video streams, the first of these will be
-                    // used as main stream. Otherwise, if the file has audio
-                    // streams, the first of these is used. If the file neither
-                    // has video nor audio streams, an error is returned
-                    let main_index: usize;
-                    if let Some(index) = first_video_index {
-                        main_index = index;
-                    } else if let Some(index) = first_audio_index {
-                        main_index = index;
-                    } else {
-                        return Err(anyhow!("Cannot determine \"main stream\", since video neither has a video nor an audio stream"));
-                    }
-                    main_stream = Some(ffms2::track::Track::TrackFromIndex(
-                        &ffms2_index,
-                        main_index,
-                    ));
+                // Video must have at least one video or one audio stream
+                if first_audio_index.is_none() && first_video_index.is_none() {
+                    return Err(anyhow!("Video neither has a video nor an audio stream"));
                 }
             }
             Err(err) => {
@@ -174,28 +146,7 @@ impl Metadata {
             }
         }
 
-        // Create (a) index for mapping timestamps to frame numbers
-        //        (b) key_frames array
-        if let Some(stream) = main_stream {
-            for i in 0..stream.NumFrames() {
-                times.push(
-                    // Calculate time. Formula taken from:
-                    // https://github.com/FFMS/ffms2/blob/master/doc/ffms2-api.md#ffms_frameinfo
-                    Time::from(
-                        stream.FrameInfo(i).PTS as f64 * stream.TimeBase().Num as f64
-                            / stream.TimeBase().Den as f64
-                            / 1000_f64,
-                    ),
-                );
-                if stream.FrameInfo(i).KeyFrame == 1 {
-                    key_frames.push(Frame::from(i));
-                }
-            }
-        } else {
-            return Err(anyhow!(
-                "Could not determine \"main stream\", since video might have no streams at all"
-            ));
-        }
+        let (times, key_frames) = retrieve_indexes(video)?;
 
         trace!("Metadata retrieved");
 
@@ -297,11 +248,77 @@ impl Metadata {
     }
 }
 
-/// Make sure that ffms2 initilization is only done once
-static INIT: Once = Once::new();
-fn init_ffms2() {
-    INIT.call_once(|| {
-        ffms2::FFMS2::Init();
-        trace!("FFMS2 initialized");
-    });
+/// Retrieves list of timestamps (i.e., the timestamps for each frames sorted
+/// ascending) and the list of key frames sorted ascending by frame number.
+/// This is done by calling ffmsindex
+fn retrieve_indexes<P>(video: P) -> anyhow::Result<(Vec<Time>, Vec<Frame>)>
+where
+    P: AsRef<Path>,
+{
+    // Make sure FFMS2 index files are removed ultimately
+    defer! {
+    for ext in [FFMS2_INDEX_EXT,FFMS2_KEY_FRAMES_INDEX_EXT,FFMS2_TIMES_INDEX_EXT].iter() {
+            _ = fs::remove_file(Path::new(&format!(
+            "{}.{}",
+            video.as_ref().display(),
+            ext
+        )));
+    }
+        trace!("Removed FFMS2 index files");
+        }
+
+    trace!("Retrieving data from FFMS2 index ...");
+
+    let output: Output = cmd!("ffmsindex", "-f", "-k", "-c", video.as_ref().as_os_str(),)
+        .stdout_null()
+        .stderr_capture()
+        .unchecked()
+        .run()
+        .context("Could not execute ffmsindex to create index files")?;
+
+    if !output.status.success() {
+        return Err(anyhow!("ffmsindex: {}", from_utf8(&output.stderr).unwrap())
+            .context("Could not create key frame / time indexes"));
+    }
+
+    // Retrieve data from times index file
+    let mut times: Vec<Time> = vec![];
+    if let Ok(file) = File::open(Path::new(&format!(
+        "{}.{}",
+        video.as_ref().display(),
+        FFMS2_TIMES_INDEX_EXT
+    ))) {
+        // Skip first line since it is a comment
+        for line in BufReader::new(file).lines().skip(1).flatten() {
+            // Times index contains time in milliseconds, but Time expects
+            // seconds
+            times.push(Time::from(
+                &line
+                    .parse::<f64>()
+                    .context(format!("Could not convert \"{}\" into time", line))?
+                    / 1000.0,
+            ));
+        }
+    } else {
+        debug!("Times index file does not exist");
+    }
+
+    // Retrieve data from key frames index file
+    let mut key_frames: Vec<Frame> = vec![];
+    if let Ok(file) = File::open(Path::new(&format!(
+        "{}.{}",
+        video.as_ref().display(),
+        FFMS2_KEY_FRAMES_INDEX_EXT
+    ))) {
+        // Skip first 2 lines since they are comments / not relevant
+        for line in BufReader::new(file).lines().skip(2).flatten() {
+            key_frames.push(Frame::from_str(&line)?);
+        }
+    } else {
+        debug!("Key frames index file does not exist");
+    }
+
+    trace!("Retrieved data from FFMS2 index");
+
+    Ok((times, key_frames))
 }

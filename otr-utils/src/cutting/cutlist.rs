@@ -231,6 +231,7 @@ where
         .context(err_msg.clone())?;
 
     let btype = BoundaryType::from_str(std::any::type_name::<B>()).context(err_msg.clone())?;
+
     let (start, duration) = (
         cut_ini
             .get(item_attr_start(&btype))
@@ -595,31 +596,37 @@ impl Cutlist {
         );
 
         // Try to retrieve and add frame interval
-        let interval = interval_from_ini::<Frame>(cutlist_ini, cut_no).context(err_msg.clone())?;
-        if !interval.is_empty() {
-            if cut_no == 0 {
-                self.frame_intervals = Some(vec![interval]);
-            } else if self.has_frame_intervals() {
-                self.frame_intervals.as_mut().unwrap().push(interval)
-            } else {
-                return Err(anyhow!(
+        if let Ok(interval) =
+            interval_from_ini::<Frame>(cutlist_ini, cut_no).context(err_msg.clone())
+        {
+            if !interval.is_empty() {
+                if cut_no == 0 {
+                    self.frame_intervals = Some(vec![interval]);
+                } else if self.has_frame_intervals() {
+                    self.frame_intervals.as_mut().unwrap().push(interval)
+                } else {
+                    return Err(anyhow!(
                     "Cannot add frame interval to cut list since it had no frame intervals so far"
                 )
-                .context(err_msg));
+                    .context(err_msg));
+                }
             }
         }
         // Try to retrieve and add time interval
-        let interval = interval_from_ini::<Time>(cutlist_ini, cut_no).context(err_msg.clone())?;
-        if !interval.is_empty() {
-            if cut_no == 0 {
-                self.time_intervals = Some(vec![interval]);
-            } else if self.has_time_intervals() {
-                self.time_intervals.as_mut().unwrap().push(interval)
-            } else {
-                return Err(anyhow!(
+        if let Ok(interval) =
+            interval_from_ini::<Time>(cutlist_ini, cut_no).context(err_msg.clone())
+        {
+            if !interval.is_empty() {
+                if cut_no == 0 {
+                    self.time_intervals = Some(vec![interval]);
+                } else if self.has_time_intervals() {
+                    self.time_intervals.as_mut().unwrap().push(interval)
+                } else {
+                    return Err(anyhow!(
                     "Cannot add time interval to cut list since it had no time intervals so far"
                 )
-                .context(err_msg));
+                    .context(err_msg));
+                }
             }
         }
 
