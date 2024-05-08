@@ -3,7 +3,7 @@ mod dirs;
 
 pub use collecting::collect;
 
-use super::cfg;
+use crate::cfg;
 use anyhow::{anyhow, Context};
 use dirs::DirKind;
 use lazy_static::lazy_static;

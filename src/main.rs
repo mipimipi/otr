@@ -1,7 +1,9 @@
+mod cfg;
 mod cli;
+mod video;
 
+use crate::video::Video;
 use anyhow::anyhow;
-use common::video::{self, Video};
 use itertools::Itertools;
 use log::*;
 use otr_utils::cutting;
