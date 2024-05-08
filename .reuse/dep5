@@ -15,8 +15,6 @@ Files: .gitignore
        CONTRIBUTING.md
        CHANGELOG.md
        resources/*
-       common/*
-       otr/*
-       otr-utils/*
+       src/*
 Copyright: 2022-2024 Michael Picht <mipi@fsfe.org>
 License: GPL-3.0-or-later
