@@ -104,16 +104,16 @@ The configuration file has this structure:
 
 	{
 		"working_dir": "<PATH TO YOUR OTR WORKING DIRECTORY>",
-        "decoding": {
-    		"user": "<YOUR OTR USER>",
-	    	"password": "<YOUR OTR PASSWORD>",
-        },
-        "cutting": {
-            "min_cutlist_rating": <MINIMUM CUT LIST RATING>
-            "submit_cutlists": <true/false>
-            "cutlist_at_access_token": <ACCESS TOKEN REQUIRED FOR CUTLIST.AT>
-            "cutlist_rating": <DEFAULT CUT LIST RATING>
-        }
+		"decoding": {
+			"user": "<YOUR OTR USER>",
+			"password": "<YOUR OTR PASSWORD>",
+	},
+		"cutting": {
+			"min_cutlist_rating": <MINIMUM CUT LIST RATING>
+			"submit_cutlists": <true/false>
+			"cutlist_at_access_token": <ACCESS TOKEN REQUIRED FOR CUTLIST.AT>
+			"cutlist_rating": <DEFAULT CUT LIST RATING>
+		}
 	}
 
 All parameters are optional and/or have default values, or can be overwritten by a corresponding command line parameter. This table explains the details:
