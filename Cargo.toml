@@ -1,7 +1,6 @@
 [workspace]
 members = [
         "common",
-        "otr-utils",
         "otr",
 ]
 resolver = "2"
