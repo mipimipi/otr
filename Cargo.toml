@@ -1,6 +1,6 @@
 [package]
 name = "otr"
-version = "0.11.2"
+version = "0.11.3"
 authors = ["Michael Picht <mipi@fsfe.org>"]
 license = "GPL-3.0-or-later"
 description = "otr decodes and cuts video files that were downloaded from Online TV Recorder <https://onlinetvrecorder.com/>"
