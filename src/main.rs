@@ -17,6 +17,7 @@ fn process_videos() -> anyhow::Result<()> {
     // directories. They are returned as vector sorted by video key and
     // (descending) status.
     #[allow(clippy::manual_try_fold)]
+    #[allow(clippy::manual_inspect)]
     video::collect(&cli::videos())?
         // Create an iterator that delivers type &mut Video
         .iter_mut()
