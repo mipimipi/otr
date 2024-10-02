@@ -1061,9 +1061,9 @@ dependencies = [
 
 [[package]]
 name = "otr-utils"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d2fa5fe6b0150a229bf2166fd9948e1c3480494c6d754f4a3c60ddad81171f1"
+checksum = "02a2f96f6c53cd0ac548b6862877fd9880d0e2a6bcf5af806248133ef01001b3"
 dependencies = [
  "anyhow",
  "base64",
