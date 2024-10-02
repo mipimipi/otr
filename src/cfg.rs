@@ -130,11 +130,7 @@ pub fn submit_cutlists() -> bool {
     match cfg_from_file() {
         Ok(cfg) => {
             if let Some(_cutting) = &cfg.cutting {
-                if let Some(_submit_cutlists) = _cutting.submit_cutlists {
-                    _submit_cutlists
-                } else {
-                    false
-                }
+                _cutting.submit_cutlists.unwrap_or_default()
             } else {
                 false
             }

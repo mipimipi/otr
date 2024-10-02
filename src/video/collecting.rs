@@ -8,9 +8,9 @@ use log::*;
 use std::{env, fs, path::Path};
 
 /// Collects video files either from the submitted input paths, or (if no path
-/// was submitted) from the working (sub) directories. The the corresponding
-/// Video instances are created and returned as vector, sorted by key
-/// (ascending) and status (descending).
+/// was submitted) from the working (sub) directories. The corresponding Video
+/// instances are created and returned as vector, sorted by key (ascending) and
+/// status (descending).
 pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
     let mut videos: Vec<Video> = Vec::new();
 
@@ -29,8 +29,8 @@ pub fn collect(in_videos: &[&Path]) -> anyhow::Result<Vec<Video>> {
             continue;
         }
 
-        // Create video from abs_path, while the path is canonicalized - i.e.,
-        // we do not have to canonicalize it here
+        // Create video from abs_path. Since the path is canonicalized during
+        // activity, it is not necessary to canonicalize it here
         if let Ok(mut video) = Video::new(&abs_path) {
             video.move_to_working_dir()?;
             videos.push(video);
