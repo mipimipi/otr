@@ -1,5 +1,11 @@
 # Changelog
 
+## [Release 0.11.3](https://gitlab.com/mipimipi/otr/tags/v0.11.3) (2024-10-02)
+
+### Changed
+
+- Adjusted call of FFmpeg to ensure accurate cutting of videos. FFmpeg seems to behave differently with respect to copying / extracting parts of a video file depending on the sequence parameters are passed. The sequence was adjusted.
+
 ## [Release 0.11.0](https://gitlab.com/mipimipi/otr/tags/v0.11.0) (2024-05-05)
 
 ### Changed
@@ -10,7 +16,7 @@
 
 ### Changed
 
-- Cutting is done accurate to frames (i.e., even if a boundary of a cut interval is not at a key frame, the videos is cut exactly at that boundary). FFmpeg replaces MKVmerge as toll used for cutting
+- Cutting is done accurate to frames (i.e., even if a boundary of a cut interval is not at a key frame, the videos is cut exactly at that boundary). FFmpeg replaces MKVmerge as tool used for cutting
 - Syntax of cut list interval for option `otr cut --cutlist` slightly changed
 
 ### Removed
