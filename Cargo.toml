@@ -20,10 +20,10 @@ dirs = "5"
 indoc = "2"
 itertools = "0.13"
 lazy_static = "1"
-log = { version = "0.4", features = ["kv_unstable", "kv_unstable_serde"]}
+log = "0.4"
 once_cell = "1"
 otr-utils = "0"
-print_logger = { version = "0.2" }
+print_logger = "0"
 regex = "1"
 reqwest = { version = "0.12", features = ["blocking", "multipart"] }
 rust-ini = "0.21"
