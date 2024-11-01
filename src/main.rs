@@ -6,7 +6,6 @@ use crate::video::Video;
 use anyhow::anyhow;
 use itertools::Itertools;
 use log::*;
-use otr_utils::cutting;
 use regex::Regex;
 
 /// Process videos (i.e., collect, move, decode and cut them). This is done in a
@@ -91,12 +90,6 @@ fn main() {
         .init()
         // Provoke dump in case of an error
         .unwrap();
-
-    // Check if ffmpeg is properly installed
-    if (cli::is_cut_command() || cli::is_process_command()) && !cutting::ffmpeg_is_installed() {
-        error!("ffmpeg is required by otr for cutting videos. Make sure it is properly installed and that the ffmpeg binaries are in your path");
-        std::process::exit(1);
-    }
 
     // Process video files (collect, decode and cut them)
     if process_videos().is_err() {
