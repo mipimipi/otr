@@ -1045,7 +1045,6 @@ name = "otr"
 version = "0.11.6"
 dependencies = [
  "anyhow",
- "chrono",
  "clap",
  "const_format",
  "dirs",
@@ -1057,8 +1056,6 @@ dependencies = [
  "otr-utils",
  "print_logger",
  "regex",
- "reqwest",
- "rust-ini",
  "serde",
  "serde_json",
 ]
