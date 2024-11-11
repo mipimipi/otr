@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022-2024 Michael Picht <mipi@fsfe.org>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 [![Crates.io](https://img.shields.io/crates/v/otr.svg)](https://crates.io/crates/otr)
 [![REUSE status](https://api.reuse.software/badge/gitlab.com/mipimipi/otr)](https://api.reuse.software/info/gitlab.com/mipimipi/otr)
 

@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2022-2024 Michael Picht <mipi@fsfe.org>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+version = 1
+SPDX-PackageName = "otr"
+SPDX-PackageSupplier = "Michael Picht <mipi@fsfe.org>"
+SPDX-PackageDownloadLocation = "gitlab.com/mipimipi/otr"
+
+[[annotations]]
+path = "Cargo.lock"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2022-2024 Michael Picht <mipi@fsfe.org>"
+SPDX-License-Identifier = "CC-BY-NC-SA-4.0"
+
+[[annotations]]
+path = ["resources/otr.desktop"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2022-2024 Michael Picht <mipi@fsfe.org>"
+SPDX-License-Identifier = "GPL-3.0-or-later"

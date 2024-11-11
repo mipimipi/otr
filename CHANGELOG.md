@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022-2024 Michael Picht <mipi@fsfe.org>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Changelog
 
 ## [Release 0.11.3](https://gitlab.com/mipimipi/otr/tags/v0.11.3) (2024-10-02)

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022-2024 Michael Picht <mipi@fsfe.org>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use super::cfg;
 
 use anyhow::{anyhow, Context};

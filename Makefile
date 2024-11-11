@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-2024 Michael Picht <mipi@fsfe.org>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 PROG=otr
 
 # Set variables whose values are specific to the operation system. Currently only
