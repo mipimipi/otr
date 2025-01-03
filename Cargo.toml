@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-2024 Michael Picht <mipi@fsfe.org>
+# SPDX-FileCopyrightText: 2022-2025 Michael Picht <mipi@fsfe.org>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -21,7 +21,7 @@ clap = { version = "4", features = ["derive"] }
 const_format = "0.2"
 dirs = "5"
 indoc = "2"
-itertools = "0.13"
+itertools = "0.14"
 lazy_static = "1"
 log = "0.4"
 once_cell = "1"
